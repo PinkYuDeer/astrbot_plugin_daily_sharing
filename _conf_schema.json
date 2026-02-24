@@ -85,7 +85,7 @@
   "extra_shares": {
     "description": "📅 早报设置",
     "type": "object",
-    "hint": "60s新闻和AI资讯将共用此定时时间直接发送图片。",
+    "hint": "每天60s读世界和AI资讯快报将共用此定时时间直接发送图片。",
     "items": {
       "cron_briefing": {
         "description": "定时分享时间",
@@ -96,12 +96,20 @@
       "enable_60s_news": {
         "description": "启用分享每天60s读世界",
         "type": "bool",
-        "default": false
+        "default": false,
+        "hint": "开启后，定时触发的每天60s读世界自动分享到群聊、私聊。"        
       },
       "enable_ai_news": {
         "description": "启用分享AI资讯快报",
         "type": "bool",
-        "default": false
+        "default": false,
+        "hint": "开启后，定时触发的AI资讯快报自动分享到群聊、私聊。"          
+      },
+      "sync_briefing_to_qzone": {
+        "description": "启用分享早报到QQ空间",
+        "type": "bool",
+        "default": false,
+        "hint": "开启后，定时触发的每天60s读世界和AI资讯快报也会自动作为说说分享到QQ空间。"
       }
     }
   },
@@ -140,7 +148,7 @@
         "hint": "用于【知识】和【推荐】类型。Bot会记住最近N天内分享过的主题，避免重复分享相同的内容。同时早于此天数的日志也会被自动清理。"
       },
       "sharing_type": {
-        "description": "分享类型模式",
+        "description": "群聊、私聊分享类型模式",
         "type": "string",
         "default": "auto",
         "options": ["auto", "greeting", "news", "mood", "knowledge", "recommendation"],
@@ -379,19 +387,19 @@
   "image_conf": {
     "description": "🎨 配图与视频设置",
     "type": "object",
-    "hint": "配置 AI 配图、视频生成及图文发送方式。",
+    "hint": "配置生成配图、视频及图文发送方式。",
     "items": {
       "enable_ai_image": {
-        "description": "启用AI配图",
+        "description": "启用生成配图",
         "type": "bool",
         "default": false,
         "hint": "需要安装 astrbot_plugin_gitee_aiimg 插件才能使用。"
       },
       "use_gitee_selfie_ref": {
-        "description": "启用自拍参考图",
+        "description": "启用形象参考图",
         "type": "bool",
         "default": false,
-        "hint": "开启后，若判断需要画人，将尝试使用 astrbot_plugin_gitee_aiimg 插件中保存的参考图进行图生图以保持一致性。"
+        "hint": "开启后，若判断需要画人，将尝试使用 astrbot_plugin_gitee_aiimg 插件中保存的形象参考图进行图生图以保持一致性。"
       },
       "priority_text_over_schedule": {
         "description": "文案主导构图",
@@ -410,10 +418,10 @@
         "hint": "仅当分享类型在列表中时，才会生成图片。"
       },
       "enable_ai_video": {
-        "description": "启用AI视频",
+        "description": "启用生成视频",
         "type": "bool",
         "default": false,
-        "hint": "需要 astrbot_plugin_gitee_aiimg 插件配置 Grok Key。开启后，配图将尝试转换为5秒视频。"
+        "hint": "需要 astrbot_plugin_gitee_aiimg 插件配置Grok。开启后，将尝试把配图转换为视频。"
       },
       "video_enabled_types": {
         "description": "允许视频的类型",
@@ -423,13 +431,13 @@
           "options": ["greeting", "news", "mood", "knowledge", "recommendation"]
         },
         "default": ["greeting", "mood"],
-        "hint": "建议仅对【问候】或【心情】开启，新闻和知识类推荐用图片。"
+        "hint": "仅当分享类型在列表中时，才会生成视频。"
       },
       "separate_text_and_image": {
         "description": "图文分开发送",
         "type": "bool",
         "default": true,
-        "hint": "开启后，文字和图片/视频会分两条消息发送。关闭则将文字和图片一起发送(视频无法合并，强制分开)。"
+        "hint": "开启后，文字和图片、视频会分两条消息发送。关闭则将文字和图片一起发送(视频无法合并，强制分开)。"
       },
       "separate_send_delay": {
         "description": "发送延迟(秒)",
@@ -438,22 +446,22 @@
         "hint": "文字发送后，等待多久再发送媒体。格式: '最小值-最大值'。如：1.0-2.0"
       },
       "record_image_description": {
-        "description": "记录描述到历史",
+        "description": "记录配图描述到历史",
         "type": "bool",
         "default": true,
-        "hint": "会话历史中会包含图片/视频的中文描述。"
+        "hint": "对话历史中会包含图片的中文描述。"
       },
       "appearance_prompt": {
-        "description": "AI配图的外貌提示词",
+        "description": "生成配图的人设外貌提示词",
         "type": "text",
         "default": "",
-        "hint": "留空则从人设自动提取。"
+        "hint": "留空则从人设自动提取外貌特征。"
       },
       "image_always_include_self": {
         "description": "始终包含人物形象",
         "type": "bool",
         "default": false,
-        "hint": "开启后，所有配图都会包含Bot的外貌特征。"
+        "hint": "开启后，所有配图都会包含人设的外貌特征。"
       },
       "image_never_include_self": {
         "description": "从不包含人物形象",
@@ -481,13 +489,94 @@
           "type": "string"
         },
         "default": ["greeting", "mood"],
-        "hint": "仅当分享类型在列表中时，才会生成语音。建议勾选问候、心情等需要情感表达的类型，新闻/科普可根据需求开启。"
+        "hint": "仅当分享类型在列表中时，才会生成语音。"
       },
       "prefer_audio_only": {
         "description": "仅发送语音",
         "type": "bool",
         "default": false,
         "hint": "开启后，如果语音生成成功，将不再发送文字（仅发送语音+配图）。关闭则文字和语音都会发送。"
+      }
+    }
+  },
+  "qzone_conf": {
+    "description": "🌟 QQ空间说说分享设置",
+    "type": "object",
+    "hint": "独立于群聊私聊，自动定时分享QQ空间说说。",
+    "items": {
+      "enable_qzone": {
+        "description": "启用定时分享QQ空间说说",
+        "type": "bool",
+        "default": false,
+        "hint": "开启后，将按照下方的Cron规则和序列自动分享说说。"
+      },
+      "qzone_cron": {
+        "description": "定时分享时间 (Cron)",
+        "type": "string",
+        "default": "0 20 * * *",
+        "hint": "Cron表达式，例如 0 20 * * * 表示每天晚上8点触发"
+      },
+      "qzone_enable_image": {
+        "description": "为说说生成配图",
+        "type": "bool",
+        "default": false,
+        "hint": "开启后，将根据说说文案生成配图。需在【🎨 配图与视频设置】中开启生成配图总开关。"
+      },
+      "qzone_sharing_type": {
+        "description": "QQ空间分享模式",
+        "type": "string",
+        "default": "auto",
+        "options": ["auto", "greeting", "news", "mood", "knowledge", "recommendation"],
+        "hint": "auto=按照下方配置的【时段序列】轮换 | 选具体类型则永远只发该类型"
+      },
+      "qzone_dawn_sequence": {
+        "description": "【序列】凌晨 (00:00-06:00)",
+        "type": "list",
+        "items": {"type": "string"},
+        "default": ["mood"],
+        "hint": "请填入英文：greeting(问候), news(新闻), mood(心情), knowledge(知识), recommendation(推荐)。按顺序循环执行。"
+      },
+      "qzone_morning_sequence": {
+        "description": "【序列】早晨 (06:00-09:00)",
+        "type": "list",
+        "items": {"type": "string"},
+        "default": ["greeting", "mood"],
+        "hint": "请填入英文：greeting(问候), news(新闻), mood(心情), knowledge(知识), recommendation(推荐)。按顺序循环执行。"
+      },
+      "qzone_forenoon_sequence": {
+        "description": "【序列】上午 (09:00-12:00)",
+        "type": "list",
+        "items": {"type": "string"},
+        "default": ["mood"],
+        "hint": "请填入英文：greeting(问候), news(新闻), mood(心情), knowledge(知识), recommendation(推荐)。按顺序循环执行。"
+      },
+      "qzone_afternoon_sequence": {
+        "description": "【序列】下午 (12:00-16:00)",
+        "type": "list",
+        "items": {"type": "string"},
+        "default": ["mood"],
+        "hint": "请填入英文：greeting(问候), news(新闻), mood(心情), knowledge(知识), recommendation(推荐)。按顺序循环执行。"
+      },
+      "qzone_evening_sequence": {
+        "description": "【序列】傍晚 (16:00-19:00)",
+        "type": "list",
+        "items": {"type": "string"},
+        "default": ["mood"],
+        "hint": "请填入英文：greeting(问候), news(新闻), mood(心情), knowledge(知识), recommendation(推荐)。按顺序循环执行。"
+      },
+      "qzone_night_sequence": {
+        "description": "【序列】夜晚 (19:00-22:00)",
+        "type": "list",
+        "items": {"type": "string"},
+        "default": ["mood"],
+        "hint": "请填入英文：greeting(问候), news(新闻), mood(心情), knowledge(知识), recommendation(推荐)。按顺序循环执行。"
+      },
+      "qzone_late_night_sequence": {
+        "description": "【序列】深夜 (22:00-24:00)",
+        "type": "list",
+        "items": {"type": "string"},
+        "default": ["mood","greeting"],
+        "hint": "请填入英文：greeting(问候), news(新闻), mood(心情), knowledge(知识), recommendation(推荐)。按顺序循环执行。"
       }
     }
   },
@@ -524,7 +613,7 @@
         "description": "指定人设ID",
         "type": "string",
         "default": "",
-         "hint": "可选择已配置的人设，留空则使用当前会话的默认人设",
+        "hint": "可选择已配置的人设，留空则使用当前会话的默认人设",
         "_special": "select_persona"
       }
     }

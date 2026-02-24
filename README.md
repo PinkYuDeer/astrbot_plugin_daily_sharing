@@ -47,8 +47,8 @@
 *   **无缝衔接**：流程完全自动化——先根据文案生成图片 -> 再根据图片生成视频 -> 发送视频消息。
 *   **场景适配**：你可以在问候（Greeting）或心情（Mood）场景开启视频，让 Bot 的“早安”真的动起来，对着镜头挥手或微笑。
 
-### 6. 📰 智能热点聚合
-*   **多源支持**：知乎、微博、B站、小红书、抖音（需配置 API Key）。
+### 6. 📰 智能热搜聚合
+*   **多源支持**：知乎、微博、B站、小红书、抖音、头条、腾讯、百度、夸克（需配置 API Key）。
 *   **时段偏好算法**：
     *   🌅 **早晨**：偏向 **小红书/知乎**（晨间轻阅读）。
     *   🌆 **傍晚**：偏向 **B站/微博**（下班吃瓜）。
@@ -66,7 +66,8 @@
 | 插件名称 | 必需性 | 作用 | 缺失影响 |
 | :--- | :--- | :--- | :--- |
 | **astrbot_plugin_life_scheduler<sup>url</sup> <sup>2</sup> [<sup>2</sup>](https://github.com/muyouzhi6/astrbot_plugin_life_scheduler)** | ⭐⭐⭐⭐⭐ | 提供虚拟生活、天气、穿搭 | 分享内容缺少生活细节，配图无法固定穿搭 |
-| **astrbot_plugin_gitee_aiimg<sup>url</sup> <sup>3</sup> [<sup>3</sup>](https://github.com/muyouzhi6/astrbot_plugin_gitee_aiimg)** | ⭐⭐⭐⭐⭐ | **提供 AI 绘图及视频生成能力** | 无法发送配图，无法生成视频 |
+| **astrbot_plugin_gitee_aiimg<sup>url</sup> <sup>3</sup> [<sup>3</sup>](https://github.com/muyouzhi6/astrbot_plugin_gitee_aiimg)** | ⭐⭐⭐⭐⭐ | **提供生成图片及视频生成能力** | 无法发送配图，无法生成视频 |
+| **astrbot_plugin_qzone<sup>url</sup> <sup>4</sup> [<sup>4</sup>](https://github.com/Zhalslar/astrbot_plugin_qzone)** | ⭐⭐⭐⭐ | **提供分享QQ空间说说的能力** | 无法将分享内容、早报长图自动分享到QQ 空间 |
 | **astrbot_plugin_memos_integrator<sup>url</sup> <sup>4</sup> [<sup>4</sup>](https://github.com/zz6zz666/astrbot_plugin_memos_integrator)** | ⭐⭐⭐⭐ | 提供记忆存储与检索 | 无法引用历史话题，无法记录分享历史 |
 | **astrbot_plugin_tts_emotion_router<sup>url</sup> <sup>5</sup> [<sup>5</sup>](https://github.com/muyouzhi6/astrbot_plugin_tts_emotion_router)** | ⭐⭐⭐⭐ | 提供情感语音合成 | 无法发送语音消息 |
 
@@ -115,14 +116,16 @@
 
 | 指令 | 参数 | 说明 |
 | :--- | :--- | :--- |
-| `/分享` | `开启` / `关闭` | 启停自动定时任务 |
-| `/分享` | `[类型]` | 立即手动触发一次。类型：`问候`, `新闻`, `心情`, `知识`, `推荐` |
+| `/分享` | `[类型]` | 立即手动触发一次。类型：`问候`, `新闻`, `心情`, `知识`, `推荐`, `60s`, `ai` |
 | `/分享` | `新闻 [源]` | 获取指定源的热搜（如 `/分享 新闻 微博`） |
 | `/分享` | `新闻 [源] 图片` | 获取指定源的热搜长图（如 `/分享 新闻 微博 图片`） |
 | `/分享` | `[类型] 广播` | 强制向所有配置的群/人发送（默认只发给当前窗口） |
+| `/分享` | `[类型] 空间` | 单独生成文案并分享到QQ空间（需安装qzone插件） |
+| `/分享` | `开启` / `关闭` | 启停自动定时任务 |
+| `/分享` | `早报空间 开启/关闭`| 启停定时分享早报到QQ空间 |
 | `/分享` | `状态` | 查看运行状态、历史记录、序列索引 |
 | `/分享` | `查看序列` | 查看当前时间段会轮换发什么内容 |
-| `/分享` | `指定序列 [序号]` | 手动跳到序列中的某一步 |
+| `/分享` | `指定序列 [序号]` | 手动跳到序列中的某一步 (支持加后缀 `空间`) |
 | `/分享` | `重置序列` | 重置轮换顺序，回到列表开头 |
 
 ## 🌰 效果示例
