@@ -87,7 +87,7 @@
 *   **image_conf -> separate_text_and_image**：开启后图文分开发送，更像真人。
 
 ### 3. 新闻源 (News)
-*   **nycnm_api_key**：**(重要)** 前往 柠柚 API [<sup>8</sup>](https://api.nycnm.cn/) 获取密钥。不填则无法获取真实热搜，仅能依靠 LLM 瞎编。
+*   **nycnm_api_key**：**(重要)** 前往[柠柚API](https://api.nycnm.cn/) 获取密钥。不填则无法获取真实热搜，仅能依靠 LLM 瞎编。
 *   **news_random_mode**：推荐 `time_based`，启用上述的“时段偏好算法”。
 
 ### 4. 听觉 (TTS)
