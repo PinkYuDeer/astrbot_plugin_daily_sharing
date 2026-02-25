@@ -14,7 +14,7 @@
 
 ## 更新日志
 
-* 请查看 **CHANGELOG.md** [<sup>1</sup>](https://github.com/siciyuanweilai/astrbot_plugin_daily_sharing/blob/main/CHANGELOG.md)
+* 请查看 [**CHANGELOG.md**](https://github.com/siciyuanweilai/astrbot_plugin_daily_sharing/blob/main/CHANGELOG.md)
 
 ## ✨ 核心特性
 
