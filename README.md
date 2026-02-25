@@ -1,10 +1,9 @@
+[![Yousa Ling](https://count.getloli.com/get/@DailySharing?theme=yousa-ling)](https://github.com/siciyuanweilai/astrbot_plugin_daily_sharing)
 # 📅 astrbot_plugin_daily_sharing (定时主动分享所见所闻)
 
 <div align="center">
 
 **✨ 赋予你的 Bot “真实的生活感” —— 集成视觉、听觉、视频、记忆的全感官主动交互插件 ✨**
-
-[![Yousa Ling](https://count.getloli.com/get/@DailySharing?theme=yousa-ling)](https://github.com/siciyuanweilai/astrbot_plugin_daily_sharing)
 
 </div>
 
