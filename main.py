@@ -52,7 +52,7 @@ SOURCE_CN_MAP.update({
     "夸克": "quark"
 })
 
-@register("daily_sharing", "四次元未来", "定时主动分享所见所闻", "4.7.2")
+@register("daily_sharing", "四次元未来", "定时主动分享所见所闻", "4.7.3")
 class DailySharingPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -317,9 +317,15 @@ class DailySharingPlugin(Star):
 
             # AI资讯
             if any(k in st_clean for k in ["ai资讯", "ai新闻", "ai日报"]) or st_clean == "ai":
+                # 先拦截检测
+                ai_data = await self.news_service.get_ai_news_json()
+                if not ai_data:
+                    await event.send(event.plain_result("获取AI资讯失败或今日暂无更新。"))
+                    return 
+
                 url = self.news_service.get_ai_news_image_url()
                 if not url:
-                    await event.send(event.plain_result("获取AI资讯失败，请检查API Key配置。"))
+                    await event.send(event.plain_result("获取AI资讯图片失败，请检查API Key配置。"))
                     return 
                     
                 if to_qzone:
@@ -449,9 +455,8 @@ class DailySharingPlugin(Star):
                 news_data = await self.news_service.get_hot_news(news_src_key)
                 
                 # 如果在主流程中(因为要语音等原因进来了)，且用户依然默认想要看热搜图
-                # (即：是新闻，且没说不要图片，且没说要AI配图)
-                # 那么我们在这里把热搜截图取出来，准备等会一起发
-                if get_image and not need_image:
+                # 并且配置允许带上新闻图
+                if get_image and not need_image and self.image_conf.get("attach_hot_news_image", True):
                     try:
                         img_path, _ = self.news_service.get_hot_news_image_url(news_src_key)
                     except Exception as e:
@@ -742,8 +747,12 @@ class DailySharingPlugin(Star):
             if weekday in [0, 6] and specific_target is None:
                 logger.info(f"[DailySharing] 今天是周{'日' if weekday==6 else '一'}，跳过发送AI资讯")
             else:
-                url = self.news_service.get_ai_news_image_url()
-                if url: images_to_send.append(("AI资讯", url))
+                ai_data = await self.news_service.get_ai_news_json()
+                if ai_data:
+                    url = self.news_service.get_ai_news_image_url()
+                    if url: images_to_send.append(("AI资讯", url))
+                else:
+                    logger.info("[DailySharing] 今日无AI资讯数据或拉取失败，跳过推送图片")
 
         if not images_to_send:
             logger.warning("[DailySharing] 早报任务触发，发现没有开启的早报发送或获取图片失败")
@@ -951,7 +960,6 @@ class DailySharingPlugin(Star):
                     continue
                 
                 # 生成多媒体素材 (图片 & 视频 & 语音) 
-                # 注意：这是自动任务的逻辑，依然遵守白名单配置
                 
                 # 1. 配图生成逻辑
                 img_path = None
@@ -959,13 +967,10 @@ class DailySharingPlugin(Star):
                 enable_img_global = self.image_conf.get("enable_ai_image", False)
                 img_allowed_types = self.image_conf.get("image_enabled_types", ["greeting", "mood", "knowledge", "recommendation"])
                 
-                # 【新闻类型特殊处理】如果未开启AI配图或当前类型不允许AI配图，但这是新闻，尝试把热搜图带上
-                if stype == SharingType.NEWS:
+                # 【新闻类型特殊处理】如果未开启AI配图或当前类型不允许AI配图，但这是新闻，且配置允许附带热搜图，尝试把热搜图带上
+                if stype == SharingType.NEWS and self.image_conf.get("attach_hot_news_image", True):
                     try:
                         # 如果没有指定源（自动选择模式），复用 state 中的 last_news_source，或者重新获取 current news source
-                        # 注意：这里我们假设 get_hot_news 已经更新了 state 或 news_data 包含了 source
-                        
-                        # 简化逻辑：直接获取 state 中记录的 last_news_source (刚刚在 get_hot_news 成功后更新的)
                         state = await self.db.get_state("global", {})
                         last_source = state.get("last_news_source")
                         if last_source:
@@ -1082,7 +1087,6 @@ class DailySharingPlugin(Star):
                 await self.context.send_message(uid, video_chain)
             elif img_path:
                 # 分享图片（如果视频没生成，或者视频关闭）
-                # 逻辑：只要图片还没发（separate_img 为真，或者虽然 separate_img 为假但因为有语音没能合并），就发
                 img_not_sent_yet = separate_img or audio_path
                 if img_not_sent_yet:
                     img_chain = MessageChain()
@@ -1298,8 +1302,8 @@ class DailySharingPlugin(Star):
                 else:
                     logger.info(f"[DailySharing] 当前类型 {stype.value} 不在QQ空间配图允许列表，跳过配图。")
             
-            # 如果是新闻类型，且没有开启画图，尝试贴热搜图
-            if stype == SharingType.NEWS and not target_local_img:
+            # 如果是新闻类型，且没有开启画图，且配置允许附带热搜图，尝试贴热搜图
+            if stype == SharingType.NEWS and not target_local_img and self.qzone_conf.get("qzone_attach_hot_news_image", True):
                 try:
                     if news_data:
                         img_url, _ = self.news_service.get_hot_news_image_url(news_data[1])
@@ -1440,9 +1444,15 @@ class DailySharingPlugin(Star):
 
         # =============== 手动触发AI资讯 ===============
         if arg == "ai":
+            # 先拦截检测
+            ai_data = await self.news_service.get_ai_news_json()
+            if not ai_data:
+                yield event.plain_result("获取AI资讯失败或今日暂无更新。")
+                return
+
             url = self.news_service.get_ai_news_image_url()
             if not url:
-                yield event.plain_result("获取AI资讯失败，请检查API Key配置。")
+                yield event.plain_result("获取AI资讯图片失败，请检查API Key配置。")
                 return
 
             if is_qzone_target:
@@ -1761,7 +1771,7 @@ Cron规则: {cron}
 【可用后缀】
  1. 广播：/分享 [类型] 广播 - 向所有配置的群聊、私聊发送
  2. 空间：/分享 [类型] 空间 - 单独生成文案并分享到QQ空间
- 3. 图片：/分享 新闻 [源] 图片 - 直接分享热搜图片
+ 3. 图片：/分享 新闻 [源] 图片 -直接分享热搜图片
  
 【配置指令】
 /分享 开启/关闭 - 启停自动分享

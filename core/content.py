@@ -1,6 +1,5 @@
 import random
 import json
-import json
 import os
 import re
 import aiofiles
@@ -22,13 +21,10 @@ class ContentService:
         self.db = db_manager 
         self.news_service = news_service
         
-        # 从配置读取内容库
         self.content_lib_conf = self.config.get("content_library", {})
-        # 读取知识库
         raw_knowledge = self.content_lib_conf.get("knowledge_cats", DEFAULT_KNOWLEDGE_CATS)
         if not raw_knowledge: raw_knowledge = DEFAULT_KNOWLEDGE_CATS
         self.knowledge_cats = self._parse_str_list_to_dict(raw_knowledge)
-        # 读取推荐库
         raw_rec = self.content_lib_conf.get("rec_cats", DEFAULT_REC_CATS)
         if not raw_rec: raw_rec = DEFAULT_REC_CATS
         self.rec_cats = self._parse_str_list_to_dict(raw_rec)
@@ -50,13 +46,11 @@ class ContentService:
         if isinstance(data_list, list):
             for item in data_list:
                 if isinstance(item, str):
-                    # 1. 统一冒号
                     item = item.replace("：", ":")
                     if ":" in item:
                         name, tags_str = item.split(":", 1)
                         name = name.strip()
                         if name and tags_str:
-                            # 2. 统一逗号并分割标签
                             tags = [t.strip() for t in tags_str.replace("，", ",").split(",") if t.strip()]
                             if tags:
                                 result[name] = tags
@@ -67,7 +61,13 @@ class ContentService:
                       life_ctx: str, chat_hist: str, news_data: tuple = None,
                       nickname: str = "") -> Optional[str]:
         """统一生成入口"""
-        persona = await self._get_persona()
+        # 获取人设信息
+        persona_info = await self._get_persona_info()
+        
+        # 区分【亲昵称呼】和【网名昵称】
+        detect_name = nickname  
+        persona_user_name = persona_info.get("user_name", "").strip()
+        call_name = persona_user_name if persona_user_name else nickname
         
         now = datetime.now()
         date_str = now.strftime("%Y年%m月%d日") 
@@ -78,11 +78,12 @@ class ContentService:
             "is_group": is_group,
             "life_hint": life_ctx or "", 
             "chat_hint": chat_hist or "", 
-            "persona": persona,
+            "persona": persona_info.get("prompt", ""),
             "period_label": self._get_period_label(period), 
             "date_str": date_str,         
             "time_str": time_str,
-            "nickname": nickname
+            "nickname": call_name,      
+            "detect_name": detect_name   
         }
         
         try:
@@ -202,44 +203,54 @@ class ContentService:
         }
         return labels.get(period, "现在")
 
-    async def _get_persona(self) -> str:
+    async def _get_persona_info(self) -> dict:
+        """获取人设详细信息（包括系统提示词和对用户的称呼）"""
+        info = {"prompt": "", "bot_name": "", "user_name": ""}
         try:
             persona_id = self.llm_conf.get("persona_id", "")
             if persona_id:
                 persona = await self.context.persona_manager.get_persona(persona_id)
                 if persona:
-                    return persona.system_prompt
+                    info["prompt"] = getattr(persona, "system_prompt", "")
+                    info["bot_name"] = getattr(persona, "bot_name", "")
+                    info["user_name"] = getattr(persona, "user_name", "")
+                    return info
 
             personality = await self.context.persona_manager.get_default_persona_v3()
-            if personality and personality.get("prompt"):
-                return personality["prompt"]
-            return ""
+            if personality:
+                info["prompt"] = personality.get("prompt", "")
+                info["bot_name"] = personality.get("bot_name", "")
+                info["user_name"] = personality.get("user_name", "")
+            return info
         except Exception as e:
             logger.error(f"[内容服务] 获取人设失败: {e}")
-            return ""
+            return info
 
     # ==================== 生成逻辑 ====================
 
-    def _build_user_prompt(self, nickname: str) -> str:
+    def _build_user_prompt(self, call_name: str, detect_name: str = "") -> str:
         """构建强化的用户信息提示，包含日程检测逻辑"""
-        if not nickname:
+        if not call_name:
             return ""
+            
+        detection_target = detect_name if detect_name else call_name
         
         return f"""
 【用户信息】
-对方昵称：{nickname}
+对方称呼：{call_name}
 【重要交互逻辑】
-1. 昵称称呼：你可以自然地使用“{nickname}”称呼对方。
-2. 日程关联检测：请仔细检查你的【生活日程】。如果日程中出现了“{nickname}”这个名字（或同音/包含关系）：
+1. 昵称称呼：你可以自然地使用“{call_name}”称呼对方。
+2. 日程关联检测：请仔细检查你的【生活日程】。如果日程中出现了“{detection_target}”这个名字（或同音/包含关系）：
    - 必须将文案转换为“和你一起”的语气。
-   - 错误示例：日程说“和{nickname}逛街”，文案写“今天我要和{nickname}去逛街”。（这是把对方当第三人称）
-   - 正确示例：日程说“和{nickname}逛街”，文案写“今天终于可以和你一起逛街啦，好期待！”。（这是对当事人说话）
+   - 错误示例：日程说“和{detection_target}逛街”，文案写“今天我要和{detection_target}去逛街”。（这是把对方当第三人称）
+   - 正确示例：日程说“和{detection_target}逛街”，文案写“今天终于可以和你一起逛街啦，好期待！”。（这是对当事人说话）
 """
 
     async def _gen_greeting(self, period: TimePeriod, ctx: dict):
         p_label = ctx['period_label']
         is_group = ctx['is_group']
-        nickname = ctx.get('nickname', '')
+        call_name = ctx.get('nickname', '')
+        detect_name = ctx.get('detect_name', '')
         
         # 0. 获取配置
         allow_detail = self.context_conf.get("group_share_schedule", False)
@@ -252,7 +263,7 @@ class ContentService:
             address_rule = "面向群友，自然使用'大家'或不加称呼。"
         else:
             address_rule = "【重要】这是一对一私聊，严禁使用'大家'、'你们'。请使用'你'或直接说内容。"
-            user_info_prompt = self._build_user_prompt(nickname)
+            user_info_prompt = self._build_user_prompt(call_name, detect_name)
 
         # 2. 避免尴尬指令 (根据配置动态调整)
         context_instruction = ""
@@ -328,7 +339,8 @@ class ContentService:
 
     async def _gen_mood(self, period, ctx):
         is_group = ctx['is_group']
-        nickname = ctx.get('nickname', '')
+        call_name = ctx.get('nickname', '')
+        detect_name = ctx.get('detect_name', '')
 
         # 0. 获取配置
         allow_detail = self.context_conf.get("group_share_schedule", False)
@@ -339,7 +351,7 @@ class ContentService:
 
         if not is_group:
             address_rule = "\n【重要：私聊模式】严禁使用'大家'、'你们'。请把你当做在和单个朋友聊天。"
-            user_info_prompt = self._build_user_prompt(nickname)
+            user_info_prompt = self._build_user_prompt(call_name, detect_name)
 
         # 2. 避免尴尬 (根据配置调整)
         vibe_check = ""
@@ -421,7 +433,8 @@ class ContentService:
             return None
 
         is_group = ctx['is_group']
-        nickname = ctx.get('nickname', '')
+        call_name = ctx.get('nickname', '')
+        detect_name = ctx.get('detect_name', '')
 
         # 0. 获取配置
         allow_detail = self.context_conf.get("group_share_schedule", False)
@@ -466,7 +479,7 @@ class ContentService:
         user_info_prompt = ""
         if not is_group:
             address_rule = "【私聊模式】不要说'大家'、'你们'。请假装只分享给你对面这一个人看。"
-            user_info_prompt = self._build_user_prompt(nickname)
+            user_info_prompt = self._build_user_prompt(call_name, detect_name)
 
         # 针对不同模式的场景融合指令
         context_instruction = ""
@@ -539,7 +552,8 @@ class ContentService:
             return None
 
         is_group = ctx['is_group']
-        nickname = ctx.get('nickname', '')
+        call_name = ctx.get('nickname', '')
+        detect_name = ctx.get('detect_name', '')
 
         # 0. 获取配置
         allow_detail = self.context_conf.get("group_share_schedule", False)
@@ -577,7 +591,7 @@ class ContentService:
             address_rule = "面向群友，可以使用'大家'、'你们'。"
         else:
             address_rule = "【重要：私聊模式】严禁使用'大家'、'你们'、'各位'。必须把你当做在和单个朋友聊天，使用'你'（例如：'你知道吗...'）。"
-            user_info_prompt = self._build_user_prompt(nickname)
+            user_info_prompt = self._build_user_prompt(call_name, detect_name)
 
         # 场景融合指令
         context_instruction = ""
@@ -636,7 +650,7 @@ class ContentService:
 2. {'语气轻松简洁' if is_group else '可以详细展开，带点个人见解'}。
 3. 可以加入你的个人感想或小评论
 4. 用【】将核心关键词【{target_keyword}】括起来。
-5. {'字数：100-150字' if is_group else '字数：150-200字'}。
+5. {'字数：100-150字' if is_group else '字数：100-200字'}。
 6. 直接输出分享内容。
 7. 【重要】文案末尾必须附带情感标签，格式为：$$happy$$, $$sad$$, $$angry$$, $$surprise$$, $$neutral$$。只选一个。
 """
@@ -660,7 +674,8 @@ class ContentService:
             return None
 
         is_group = ctx['is_group']
-        nickname = ctx.get('nickname', '')
+        call_name = ctx.get('nickname', '')
+        detect_name = ctx.get('detect_name', '')
 
         # 0. 获取配置
         allow_detail = self.context_conf.get("group_share_schedule", False)
@@ -700,7 +715,7 @@ class ContentService:
              address_rule = "面向群友，推荐给'大家'。"
         else:
              address_rule = "【重要：私聊模式】严禁使用'大家'、'你们'。必须把对方当做唯一听众，使用'你'（例如：'推荐你看...'，'你一定会喜欢...'）。"
-             user_info_prompt = self._build_user_prompt(nickname)
+             user_info_prompt = self._build_user_prompt(call_name, detect_name)
 
         # 场景融合指令
         context_instruction = ""

@@ -395,6 +395,12 @@
         "default": false,
         "hint": "需要安装 astrbot_plugin_gitee_aiimg 插件才能使用。"
       },
+      "attach_hot_news_image": {
+        "description": "新闻附带热搜长图",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后，如果新闻类型未生成配图，则发送新闻热搜长图。"
+      },
       "use_gitee_selfie_ref": {
         "description": "启用形象参考图",
         "type": "bool",
@@ -519,6 +525,12 @@
         "type": "bool",
         "default": false,
         "hint": "开启后，将根据说说文案生成配图。需在【🎨 配图与视频设置】中开启生成配图总开关。"
+      },
+      "qzone_attach_hot_news_image": {
+        "description": "说说附带新闻热搜长图",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后，如果新闻类型未生成配图，则发送新闻热搜长图。"
       },
       "qzone_image_enabled_types": {
         "description": "允许说说配图的类型",
