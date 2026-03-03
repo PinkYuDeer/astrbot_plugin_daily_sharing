@@ -67,7 +67,10 @@ class ContentService:
         # 区分【亲昵称呼】和【网名昵称】
         detect_name = nickname  
         persona_user_name = persona_info.get("user_name", "").strip()
-        call_name = persona_user_name if persona_user_name else nickname
+        if is_group:
+            call_name = "" 
+        else:
+            call_name = persona_user_name if persona_user_name else nickname
         
         now = datetime.now()
         date_str = now.strftime("%Y年%m月%d日") 
@@ -237,13 +240,13 @@ class ContentService:
         
         return f"""
 【用户信息】
-对方称呼：{call_name}
+对方的昵称称呼：【{call_name}】
 【重要交互逻辑】
-1. 昵称称呼：你可以自然地使用“{call_name}”称呼对方。
+1. 昵称称呼优先级：如果你的系统人设中已经明确规定了如何称呼对方，请绝对优先遵循系统人设的规定。否则你才可以自然地使用“{call_name}”称呼对方。
 2. 日程关联检测：请仔细检查你的【生活日程】。如果日程中出现了“{detection_target}”这个名字（或同音/包含关系）：
    - 必须将文案转换为“和你一起”的语气。
-   - 错误示例：日程说“和{detection_target}逛街”，文案写“今天我要和{detection_target}去逛街”。（这是把对方当第三人称）
-   - 正确示例：日程说“和{detection_target}逛街”，文案写“今天终于可以和你一起逛街啦，好期待！”。（这是对当事人说话）
+   - 错误示例：日程说“和{detection_target}逛街”，文案写“今天我要和{detection_target}去逛街”。
+   - 正确示例：日程说“和{detection_target}逛街”，文案写“今天终于可以和你一起逛街啦，好期待！”。
 """
 
     async def _gen_greeting(self, period: TimePeriod, ctx: dict):

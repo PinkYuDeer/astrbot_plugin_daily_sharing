@@ -574,7 +574,14 @@ class ContextService:
                 logger.warning(f"[DailySharing] 获取聊天历史记录失败: {e}")
                 return {}
 
-            self_id = str(bot.self_id) if hasattr(bot, "self_id") else ""
+            bot_qq = ""
+            if hasattr(bot, "api") and hasattr(bot.api, "call_action"):
+                try:
+                    login_info = await bot.api.call_action("get_login_info")
+                    if login_info and isinstance(login_info, dict):
+                        bot_qq = str(login_info.get("user_id", ""))
+                except Exception as e:
+                    logger.debug(f"[DailySharing] 获取 login_info 失败: {e}")
 
             for msg in raw_msgs:
                 sender_data = msg.get("sender", {})
@@ -586,11 +593,11 @@ class ContextService:
                         seg["data"]["text"] for seg in msg["message"] if seg["type"] == "text"
                     ).strip()
                 elif "raw_message" in msg:
-                    raw_content = msg["raw_message"]
+                    raw_content = str(msg["raw_message"])
 
                 if not raw_content: continue
                 
-                role = "assistant" if msg_uid == self_id else "user"
+                role = "assistant" if (bot_qq and msg_uid == bot_qq) else "user"
                 ts = msg.get("time", time.time())
                 ts_str = datetime.datetime.fromtimestamp(ts).isoformat()
                 messages.append({"role": role, "content": raw_content, "timestamp": ts_str, "user_id": msg_uid})

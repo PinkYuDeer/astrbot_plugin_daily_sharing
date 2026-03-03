@@ -161,26 +161,27 @@ class NewsService:
             source = self.select_news_source()
         
         base_url = NEWS_SOURCE_MAP[source]['url']
+        extra_params = NEWS_SOURCE_MAP[source].get('extra_params', '')
         key = self.conf.get("nycnm_api_key", "").strip()
         
-        final_url = f"{base_url}?format=image"
+        final_url = f"{base_url}?format=image{extra_params}"
         if key:
             final_url += f"&apikey={key}"
             
         return final_url, NEWS_SOURCE_MAP[source]['name']
-
     async def _fetch_news(self, source: str, key: str) -> Optional[List[Dict]]:
         """执行 HTTP 请求 """
         if source not in NEWS_SOURCE_MAP: return None
         
         source_name = NEWS_SOURCE_MAP[source]['name']
         url = NEWS_SOURCE_MAP[source]['url']
-        full_url = f"{url}?format=json&apikey={key}"
+        extra_params = NEWS_SOURCE_MAP[source].get('extra_params', '')
+        full_url = f"{url}?format=json&apikey={key}{extra_params}"
         
         timeout = self.conf.get("news_api_timeout", 30)
         
         logger.info(f"[新闻] 获取新闻: {source_name}")
-        logger.debug(f"[新闻] 请求URL: {url}?format=json&apikey=***")
+        logger.debug(f"[新闻] 请求URL: {url}?format=json&apikey=***{extra_params}")
         
         try:
             async with aiohttp.ClientSession() as session:
@@ -329,17 +330,19 @@ class NewsService:
                         info = data.get("data")
                         
                         if isinstance(info, dict):
-                            # 优先取 abstract (详细摘要)，其次取 description (简述)
                             title = info.get("title", keyword)
                             abstract = info.get("abstract", "")
                             desc = info.get("description", "")
                             
+                            parts = []
+                            if desc:
+                                parts.append(f"描述：{desc}")
                             if abstract:
                                 clean_abstract = abstract.replace("\n", " ").strip()
-                                # 截取前600字避免太长
-                                return f"{title}：{clean_abstract[:600]}"
-                            elif desc:
-                                return f"{title}：{desc}"
+                                parts.append(f"摘要：{clean_abstract}")
+                                
+                            if parts:
+                                return f"标题：【{title}】 " + " | ".join(parts)
                                 
                         elif isinstance(info, str):
                             return info
@@ -348,6 +351,24 @@ class NewsService:
         except Exception as e:
             logger.warning(f"[百科] 查询失败: {e}")
             return None
+
+    async def get_ai_news_json(self) -> Optional[Dict]:
+        """获取每日AI资讯JSON数据"""
+        key = self.conf.get("nycnm_api_key", "").strip()
+        if not key:
+            logger.error("[新闻] 未配置柠柚API密钥")
+            return None
+            
+        url = f"https://api.nycnm.cn/API/aizixun.php?format=json&apikey={key}"
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=10) as resp:
+                    if resp.status == 200:
+                        return await resp.json(content_type=None)
+            return None
+        except Exception as e:
+            logger.warning(f"[新闻] 获取AI资讯数据失败: {e}")
+            return None            
 
     def get_60s_image_url(self) -> Optional[str]:
         """获取每日60s读世界图片URL"""

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from astrbot.api import logger
-from astrbot.api.star import Context, Star, register, StarTools
+from astrbot.api.star import Context, Star, StarTools
 from astrbot.api.event import filter, AstrMessageEvent, MessageChain
 from astrbot.api import AstrBotConfig
 from astrbot.api.message_components import Record, Video 
@@ -49,10 +49,13 @@ SOURCE_CN_MAP.update({
     "头条": "toutiao", 
     "百度": "baidu", 
     "腾讯": "tencent",
-    "夸克": "quark"
+    "夸克": "quark",
+    "36氪": "36kr",
+    "51CTO": "51cto",
+    "A站": "acfun",     
+    "爱范儿": "ifanr"   
 })
 
-@register("daily_sharing", "四次元未来", "定时主动分享所见所闻", "4.7.3")
 class DailySharingPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -250,7 +253,7 @@ class DailySharingPlugin(Star):
 
         Args:
             share_type(string): 分享类型。支持：'自动', '问候', '新闻', '心情', '知识', '推荐', '60s新闻', 'AI资讯'。当用户没有明确指出发什么类型的内容（比如只说“发个说说”、“分享一下”）时，请务必将其设为 '自动'。
-            source(string): 仅当 share_type 为'新闻'时有效。指定新闻平台。支持：微博, 知乎, B站, 抖音, 头条, 百度, 腾讯, 小红书, 夸克。如果不指定则留空。
+            source(string): 仅当 share_type 为'新闻'时有效。指定新闻平台。支持：微博, 知乎, B站, 抖音, 头条, 百度, 腾讯, 小红书, 夸克, 36氪, 51CTO, A站, 爱范儿。如果不指定则留空。
             get_image(boolean): 仅当 share_type 为'新闻'时有效。默认为 True (优先分享热搜长图)。只有当用户明确要求“文字版”、“文本”、“不要图片”或“写一段新闻”时，才将其设为 False。
             need_image(boolean): 是否需要AI为这段文案配图。默认为 False。仅当用户明确说“配图”、“带图”、“发张图”时，才将其设为 True。
             need_video(boolean): 是否需要AI为这段文案生成视频。默认为 False。仅当用户明确说“视频”、“动态图”、“动起来”时，才将其设为 True。
@@ -317,7 +320,6 @@ class DailySharingPlugin(Star):
 
             # AI资讯
             if any(k in st_clean for k in ["ai资讯", "ai新闻", "ai日报"]) or st_clean == "ai":
-                # 先拦截检测
                 ai_data = await self.news_service.get_ai_news_json()
                 if not ai_data:
                     await event.send(event.plain_result("获取AI资讯失败或今日暂无更新。"))
@@ -732,7 +734,6 @@ class DailySharingPlugin(Star):
         # 1. 收集需要分享的图片 URL
         images_to_send = [] 
         
-        # 检查 60s (定时触发时检查开关，手动触发时跳过开关检查)
         check_60s = self.extra_shares_conf.get("enable_60s_news", False)
         if specific_target: check_60s = True 
         
@@ -740,19 +741,13 @@ class DailySharingPlugin(Star):
             url = self.news_service.get_60s_image_url()
             if url: images_to_send.append(("60s新闻", url))
 
-        # 排除周日和周一
         if self.extra_shares_conf.get("enable_ai_news", False):
-            weekday = datetime.now().weekday()
-            # 如果是周日(6) 或 周一(0)，且不是手动指定目标(视为自动任务)，则跳过
-            if weekday in [0, 6] and specific_target is None:
-                logger.info(f"[DailySharing] 今天是周{'日' if weekday==6 else '一'}，跳过发送AI资讯")
+            ai_data = await self.news_service.get_ai_news_json()
+            if ai_data:
+                url = self.news_service.get_ai_news_image_url()
+                if url: images_to_send.append(("AI资讯", url))
             else:
-                ai_data = await self.news_service.get_ai_news_json()
-                if ai_data:
-                    url = self.news_service.get_ai_news_image_url()
-                    if url: images_to_send.append(("AI资讯", url))
-                else:
-                    logger.info("[DailySharing] 今日无AI资讯数据或拉取失败，跳过推送图片")
+                logger.info("[DailySharing] 今日无AI资讯数据或获取失败，跳过推送图片")
 
         if not images_to_send:
             logger.warning("[DailySharing] 早报任务触发，发现没有开启的早报发送或获取图片失败")
@@ -777,7 +772,7 @@ class DailySharingPlugin(Star):
             else:
                 logger.warning("[DailySharing] 分享早报到QQ空间开启，但未检测到 astrbot_plugin_qzone 插件")
 
-        # 2. 确定目标 (复用配置)
+        # 2. 确定目标
         targets = []
         if specific_target:
             targets.append(specific_target)
@@ -924,13 +919,11 @@ class DailySharingPlugin(Star):
                         if adapter_id and real_id:
                             bot = self.ctx_service._get_bot_instance(adapter_id)
                             if bot:
-                                # 尝试调用 get_stranger_info 获取昵称
                                 ret = await bot.api.call_action("get_stranger_info", user_id=int(real_id))
                                 if ret and isinstance(ret, dict):
                                     nickname = ret.get("nickname", "")
                                     logger.info(f"[DailySharing] 获取到用户昵称: {nickname}")
                     except Exception as e:
-                         # 获取失败则保持为空，不影响后续流程
                          logger.warning(f"[DailySharing] 获取昵称失败: {e}")
 
                 hist_data = await self.ctx_service.get_history_data(uid, is_group)

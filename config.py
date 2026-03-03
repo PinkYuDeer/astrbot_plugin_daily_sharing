@@ -1,3 +1,4 @@
+# config.py
 from enum import Enum
 
 class TimePeriod(Enum):
@@ -33,7 +34,7 @@ CRON_TEMPLATES = {
 NEWS_SOURCE_MAP = {
     "zhihu": {
         "url": "https://api.nycnm.cn/API/zhihu.php",
-        "name": "知乎热榜",
+        "name": "知乎热搜",
         "icon": "📚"
     },
     "weibo": {
@@ -76,13 +77,34 @@ NEWS_SOURCE_MAP = {
         "name": "腾讯热搜",
         "icon": "🐧"
     },
+    "36kr": {
+        "url": "https://api.nycnm.cn/API/36kr.php",
+        "name": "36氪热搜",
+        "icon": "📈",
+        "extra_params": "&type=comment"
+    },
+    "51cto": {
+        "url": "https://api.nycnm.cn/API/51cto.php",
+        "name": "51CTO热搜",
+        "icon": "💻"
+    },
+    "acfun": {
+        "url": "https://api.nycnm.cn/API/acfun.php",
+        "name": "A站热搜",
+        "icon": "📺"
+    },
+    "ifanr": {
+        "url": "https://api.nycnm.cn/API/ifanr.php",
+        "name": "爱范儿热搜",
+        "icon": "📱"
+    }
 }
 
 # 时间段新闻源偏好 
 NEWS_TIME_PREFERENCES = {
     # 凌晨：偏向种草、短视频、emo时刻
     TimePeriod.DAWN: {
-        "zhihu": 0.30,
+        "zhihu": 0.25,
         "bili": 0.20,
         "douyin": 0.15,
         "xiaohongshu": 0.10,
@@ -94,27 +116,28 @@ NEWS_TIME_PREFERENCES = {
     },    
     # 早晨：偏向生活方式、通勤阅读、硬新闻
     TimePeriod.MORNING: {
-        "xiaohongshu": 0.20, 
-        "weibo": 0.20,
+        "xiaohongshu": 0.15, 
+        "weibo": 0.15,
         "quark": 0.15,
+        "36kr": 0.10,
+        "51cto": 0.10,
         "toutiao": 0.10,
         "baidu": 0.10,
-        "bili": 0.10,
-        "douyin": 0.10,
+        "bili": 0.05,
+        "douyin": 0.05,
         "tencent": 0.05,
-        "zhihu": 0.05,
     },
     # 上午：偏向资讯、工作摸鱼
     TimePeriod.FORENOON: {
-        "weibo": 0.20,
+        "weibo": 0.15,
         "quark": 0.15,
-        "toutiao": 0.15,
-        "zhihu": 0.15,
+        "36kr": 0.15,
+        "51cto": 0.15,
+        "toutiao": 0.10,
+        "zhihu": 0.10,
         "baidu": 0.10,
         "tencent": 0.05,
-        "xiaohongshu": 0.10,
-        "bili": 0.10,
-        "douyin": 0.05,
+        "xiaohongshu": 0.05,
     },    
     # 下午：偏向娱乐视频、吃瓜、深度阅读
     TimePeriod.AFTERNOON: {
@@ -123,10 +146,11 @@ NEWS_TIME_PREFERENCES = {
         "zhihu": 0.15,
         "weibo": 0.10,
         "bili": 0.10,
+        "36kr": 0.05,
+        "51cto": 0.05,
         "baidu": 0.10,
-        "toutiao": 0.10,
-        "xiaohongshu": 0.10,
-        "tencent": 0.05,
+        "toutiao": 0.05,
+        "xiaohongshu": 0.05,
     },
     # 傍晚：偏向放松、下班娱乐、长视频
     TimePeriod.EVENING: {
@@ -138,7 +162,6 @@ NEWS_TIME_PREFERENCES = {
         "xiaohongshu": 0.10,
         "zhihu": 0.10,
         "baidu": 0.05,
-        "toutiao": 0.05,
     },
     # 晚上：偏向娱乐、社区讨论、短视频
     TimePeriod.NIGHT: {
@@ -160,8 +183,6 @@ NEWS_TIME_PREFERENCES = {
         "weibo": 0.10,
         "quark": 0.05,
         "baidu": 0.05,
-        "tencent": 0.05,
-        "toutiao": 0.00,
     },
 }
 

@@ -342,8 +342,8 @@
         "type": "list",
         "items": {
           "type": "string",
-          "options": ["zhihu", "weibo", "bili", "xiaohongshu", "douyin", "toutiao", "baidu", "tencent", "quark"],
-          "hint": "新闻源模式为'config'或'time_based'时生效。从此列表中随机选择新闻源，增加内容多样性。推荐配置2-4个常用源。"
+          "options": ["zhihu", "weibo", "bili", "xiaohongshu", "douyin", "toutiao", "baidu", "tencent", "quark", "36kr", "51cto", "acfun", "ifanr"],
+          "hint": "新闻源模式为'config'或'time_based'时生效。从此列表中随机选择新闻源，增加内容多样性。推荐配置2-5个常用源。"
         },
         "default": ["zhihu", "weibo", "bili"]
       },
@@ -351,7 +351,7 @@
         "description": "固定新闻源",
         "type": "string",
         "default": "zhihu",
-        "options": ["zhihu", "weibo", "bili", "xiaohongshu", "douyin", "toutiao", "baidu", "tencent", "quark"],
+        "options": ["zhihu", "weibo", "bili", "xiaohongshu", "douyin", "toutiao", "baidu", "tencent", "quark", "36kr", "51cto", "acfun", "ifanr"],
         "hint": "仅在新闻源模式为 fixed 时生效。"
       },
       "news_items_count": {
