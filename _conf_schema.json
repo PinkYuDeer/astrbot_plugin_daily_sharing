@@ -19,7 +19,7 @@
         },
         "description": "推送到群聊",
         "default": [],
-        "hint": "多种格式：1. 仅群号 = 跟随全局定时分享默认序列 2. 群号:类型 = 跟随全局定时器，仅分享指定类型 3. 群号:定时:类型 = 完全独立，脱离全局。请填入英文：greeting(问候), news(新闻), mood(心情), knowledge(知识), recommendation(推荐)。例如: 123456:0 7 * * *:news,mood 、 123456:morning:auto,mood 、 123456:mood,knowledge"
+        "hint": "多种格式：1. 仅群号 = 跟随全局定时分享默认序列 2. 群号:类型 = 跟随全局定时，仅分享指定类型 3. 群号:定时:类型 = 完全独立，脱离全局。请填入英文：greeting(问候), news(新闻), mood(心情), knowledge(知识), recommendation(推荐)。例如: 123456:0 7 * * *:news,mood 、 123456:morning:auto,mood 、 123456:mood,knowledge"
       },
       "users": {
         "title": "私聊独立配置",
@@ -29,7 +29,7 @@
         },
         "description": "推送到私聊",
         "default": [],
-        "hint": "多种格式：1. 仅Q号 = 跟随全局定时分享默认序列 2. Q号:类型 = 跟随全局定时器，仅分享指定类型 3. Q号:定时:类型 = 完全独立，脱离全局。请填入英文：greeting(问候), news(新闻), mood(心情), knowledge(知识), recommendation(推荐)。例如: 123456:0 7 * * *:news,mood 、 123456:morning:auto,mood 、 123456:mood,knowledge"
+        "hint": "多种格式：1. 仅Q号 = 跟随全局定时分享默认序列 2. Q号:类型 = 跟随全局定时，仅分享指定类型 3. Q号:定时:类型 = 完全独立，脱离全局。请填入英文：greeting(问候), news(新闻), mood(心情), knowledge(知识), recommendation(推荐)。例如: 123456:0 7 * * *:news,mood 、 123456:morning:auto,mood 、 123456:mood,knowledge"
       }
     }
   },
