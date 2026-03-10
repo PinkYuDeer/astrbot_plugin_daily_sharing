@@ -120,89 +120,56 @@ NEWS_SOURCE_MAP = {
     }    
 }
 
-# 时间段新闻源偏好 
+# 时间段新闻源偏好 (已包含所有 17 个新闻源)
 NEWS_TIME_PREFERENCES = {
-    # 凌晨：偏向种草、短视频、emo时刻
+    # 凌晨：偏向种草、短视频、emo时刻 (总计17个)
     TimePeriod.DAWN: {
-        "zhihu": 0.25,
-        "bili": 0.20,
-        "douyin": 0.15,
-        "xiaohongshu": 0.10,
-        "weibo": 0.10,
-        "quark": 0.05,
-        "toutiao": 0.05,
-        "baidu": 0.05,
-        "tencent": 0.05,
+        "xiaohongshu": 0.20, "bili": 0.15, "douyin": 0.15, "zhihu": 0.10, "weibo": 0.10,
+        "quark": 0.05, "acfun": 0.05, "toutiao": 0.03, "baidu": 0.03, "tencent": 0.02,
+        "36kr": 0.02, "51cto": 0.02, "ifanr": 0.02, "netease": 0.02, "sina": 0.02, 
+        "thepaper": 0.01, "yicai": 0.01
     },    
-    # 早晨：偏向生活方式、通勤阅读、硬新闻
+    # 早晨：偏向生活方式、通勤阅读、硬新闻 (总计17个)
     TimePeriod.MORNING: {
-        "xiaohongshu": 0.15, 
-        "weibo": 0.15,
-        "quark": 0.15,
-        "36kr": 0.10,
-        "51cto": 0.10,
-        "toutiao": 0.10,
-        "baidu": 0.10,
-        "bili": 0.05,
-        "douyin": 0.05,
-        "tencent": 0.05,
+        "weibo": 0.15, "quark": 0.10, "xiaohongshu": 0.10, "36kr": 0.10, "thepaper": 0.08, 
+        "netease": 0.08, "sina": 0.08, "toutiao": 0.05, "baidu": 0.05, "tencent": 0.05, 
+        "51cto": 0.05, "yicai": 0.05, "zhihu": 0.02, "ifanr": 0.02, "bili": 0.01, 
+        "douyin": 0.01, "acfun": 0.01
     },
-    # 上午：偏向资讯、工作摸鱼
+    # 上午：偏向资讯、工作摸鱼 (总计17个)
     TimePeriod.FORENOON: {
-        "weibo": 0.15,
-        "quark": 0.15,
-        "36kr": 0.15,
-        "51cto": 0.15,
-        "toutiao": 0.10,
-        "zhihu": 0.10,
-        "baidu": 0.10,
-        "tencent": 0.05,
-        "xiaohongshu": 0.05,
+        "douyin": 0.15, "tencent": 0.12, "weibo": 0.10, "quark": 0.10, "yicai": 0.10,
+        "toutiao": 0.08, "zhihu": 0.08, "baidu": 0.05, "51cto": 0.05, "thepaper": 0.05, 
+        "sina": 0.05, "netease": 0.05, "xiaohongshu": 0.02, "ifanr": 0.02, "bili": 0.01, 
+        "36kr": 0.01, "acfun": 0.01
     },    
-    # 下午：偏向娱乐视频、吃瓜、深度阅读
+    # 下午：偏向娱乐视频、吃瓜、深度阅读 (总计17个)
     TimePeriod.AFTERNOON: {
-        "douyin": 0.20,
-        "quark": 0.15,
-        "zhihu": 0.15,
-        "weibo": 0.10,
-        "bili": 0.10,
-        "36kr": 0.05,
-        "51cto": 0.05,
-        "baidu": 0.10,
-        "toutiao": 0.05,
-        "xiaohongshu": 0.05,
+        "netease": 0.15, "zhihu": 0.15, "quark": 0.10, "weibo": 0.10, "bili": 0.10, 
+        "ifanr": 0.08, "baidu": 0.05, "toutiao": 0.05, "xiaohongshu": 0.05, "tencent": 0.05, 
+        "acfun": 0.05, "36kr": 0.02, "51cto": 0.02, "douyin": 0.02, "sina": 0.01, 
+        "thepaper": 0.01, "yicai": 0.01
     },
-    # 傍晚：偏向放松、下班娱乐、长视频
+    # 傍晚：偏向放松、下班娱乐、长视频 (总计17个)
     TimePeriod.EVENING: {
-        "bili": 0.20,
-        "quark": 0.15,
-        "weibo": 0.15,
-        "douyin": 0.15,
-        "tencent": 0.10,
-        "xiaohongshu": 0.10,
-        "zhihu": 0.10,
-        "baidu": 0.05,
+        "bili": 0.15, "douyin": 0.15, "quark": 0.10, "weibo": 0.10, "acfun": 0.10,
+        "tencent": 0.08, "xiaohongshu": 0.08, "zhihu": 0.08, "baidu": 0.05, "toutiao": 0.05, 
+        "36kr": 0.01, "51cto": 0.01, "ifanr": 0.01, "netease": 0.01, "sina": 0.01, 
+        "thepaper": 0.01, "yicai": 0.01
     },
-    # 晚上：偏向娱乐、社区讨论、短视频
+    # 晚上：偏向娱乐、社区讨论、短视频 (总计17个)
     TimePeriod.NIGHT: {
-        "douyin": 0.25,
-        "bili": 0.20,
-        "weibo": 0.15,
-        "quark": 0.10,
-        "xiaohongshu": 0.10,
-        "baidu": 0.10,
-        "zhihu": 0.05,
-        "tencent": 0.05,
+        "douyin": 0.20, "bili": 0.15, "weibo": 0.15, "acfun": 0.10, "xiaohongshu": 0.10, 
+        "quark": 0.08, "baidu": 0.05, "zhihu": 0.05, "tencent": 0.05, "toutiao": 0.02, 
+        "36kr": 0.01, "51cto": 0.01, "ifanr": 0.01, "netease": 0.01, "sina": 0.01, 
+        "thepaper": 0.01, "yicai": 0.01
     },
-    # 深夜：偏向情感、阅读、吃瓜、助眠
+    # 深夜：偏向情感、阅读、吃瓜、助眠 (总计17个)
     TimePeriod.LATE_NIGHT: {
-        "xiaohongshu": 0.25,
-        "zhihu": 0.20,
-        "bili": 0.20,
-        "douyin": 0.15,
-        "weibo": 0.10,
-        "quark": 0.05,
-        "baidu": 0.05,
+        "xiaohongshu": 0.20, "zhihu": 0.20, "bili": 0.15, "douyin": 0.15, "weibo": 0.10, 
+        "acfun": 0.05, "quark": 0.05, "baidu": 0.02, "toutiao": 0.02, "tencent": 0.02,
+        "36kr": 0.01, "51cto": 0.01, "ifanr": 0.01, "netease": 0.01, "sina": 0.01, 
+        "thepaper": 0.01, "yicai": 0.01
     },
 }
 
