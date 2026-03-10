@@ -8,7 +8,7 @@
   },
   "receiver": {
     "title": "推送目标设置",
-    "description": "配置自动发送的目标及专属配置",
+    "description": "配置自动发送的目标及独立配置",
     "type": "object",
     "items": {
       "groups": {
@@ -29,7 +29,7 @@
         },
         "description": "推送到私聊",
         "default": [],
-        "hint": "多种格式：1. 仅Q号 = 跟随全局定时分享默认序列 2. Q号:类型 = 跟随全局定时，仅分享指定类型 3. Q号:定时:类型 = 完全独立，脱离全局。请填入英文：greeting(问候), news(新闻), mood(心情), knowledge(知识), recommendation(推荐)。例如: 123456:0 7 * * *:news,mood 、 123456:morning:auto,mood 、 123456:mood,knowledge"
+        "hint": "多种格式：1. 仅QQ号 = 跟随全局定时分享默认序列 2. QQ号:类型 = 跟随全局定时，仅分享指定类型 3. QQ号:定时:类型 = 完全独立，脱离全局。请填入英文：greeting(问候), news(新闻), mood(心情), knowledge(知识), recommendation(推荐)。例如: 123456:0 7 * * *:news,mood 、 123456:morning:auto,mood 、 123456:mood,knowledge"
       }
     }
   },
@@ -83,10 +83,28 @@
     }
   },
   "extra_shares": {
-    "description": "📅 早报设置",
+    "description": "📅 早报推送目标设置",
     "type": "object",
     "hint": "每天60s读世界和AI资讯快报将共用此定时时间直接发送图片。",
     "items": {
+      "briefing_groups": {
+        "description": "早报推送群聊",
+        "type": "list",
+        "items": {
+          "type": "string"
+        },
+        "default": [],
+        "hint": "填入接收早报的群号。留空则不推送。"
+      },
+      "briefing_users": {
+        "description": "早报推送私聊",
+        "type": "list",
+        "items": {
+          "type": "string"
+        },
+        "default": [],
+        "hint": "填入接收早报的QQ号。留空则不推送。"
+      },      
       "cron_briefing": {
         "description": "定时分享时间",
         "type": "string",

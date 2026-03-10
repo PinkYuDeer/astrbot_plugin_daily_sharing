@@ -38,7 +38,7 @@ class TaskManager:
             self.setup_cron(cron)
             logger.debug(f"[DailySharing] 分享内容定时任务已启动 ({cron})")
             
-            # 扫描并注册所有带独立时间的专属定时任务
+            # 扫描并注册所有带独立时间的独立定时任务
             self.setup_custom_target_crons()
         else:
             logger.debug("[DailySharing] 分享内容已禁用")
@@ -59,7 +59,7 @@ class TaskManager:
         asyncio.create_task(self._recover_pending_jobs())
 
     def setup_custom_target_crons(self):
-        """解析并为写了专属时间的群/私聊挂载独立闹钟 (支持随机延迟)"""
+        """解析并为写了独立时间的群聊、私聊挂载独立定时 (支持随机延迟)"""
         default_adapter_id = self.plugin._cached_adapter_id
         if not default_adapter_id:
             try:
@@ -95,7 +95,7 @@ class TaskManager:
                     if self._lock.locked():
                         logger.warning(f"[DailySharing] 独立任务 {target_id} 触发，系统繁忙排队中...")
                     async with self._lock:
-                        logger.debug(f"[DailySharing] 专属时间到达，开始执行独立分享任务: {target_id}")
+                        logger.debug(f"[DailySharing] 独立时间到达，开始执行独立分享任务: {target_id}")
                         await self.execute_share(specific_target=target_umo)
                 finally:
                     self.plugin._bg_tasks.discard(task)
@@ -140,9 +140,9 @@ class TaskManager:
                     minute=parts[0], hour=parts[1], day=parts[2], month=parts[3], day_of_week=parts[4],
                     id=job_id, replace_existing=True, max_instances=1
                 )
-                logger.debug(f"[DailySharing] 独立群/私聊任务 [{target_id}] 已挂载专属闹钟: {actual_cron}")
+                logger.debug(f"[DailySharing] 独立群聊、私聊任务 [{target_id}] 已挂载独立定时: {actual_cron}")
             else:
-                logger.error(f"[DailySharing] 独立群/私聊任务 [{target_id}] 无效的Cron表达式: {cron_str}")
+                logger.error(f"[DailySharing] 独立群聊、私聊任务 [{target_id}] 无效的Cron表达式: {cron_str}")
 
         for gid, conf in r_groups.items():
             if isinstance(conf, dict) and conf.get("cron"):
@@ -199,7 +199,7 @@ class TaskManager:
             else:
                 await self.db.update_state_dict("qzone", {"pending_delay_job": None})
 
-        # 独立群聊、私聊专属任务的延迟恢复
+        # 独立群聊、私聊任务的延迟恢复
         default_adapter_id = self.plugin._cached_adapter_id
         if not default_adapter_id:
             try:
@@ -221,7 +221,7 @@ class TaskManager:
                 if self.plugin._is_terminated: return
                 await self.db.update_state_dict(f"target_{tid}", {"pending_delay_job": None})
                 async with self._lock:
-                    logger.info(f"[DailySharing] ⏰ 补偿恢复，执行独立分享任务: {tid}")
+                    logger.debug(f"[DailySharing] 补偿恢复，执行独立分享任务: {tid}")
                     await self.execute_share(specific_target=target_umo)
             return delayed_recover
 
@@ -603,7 +603,7 @@ class TaskManager:
                 selected_str = custom_seq[idx]
                 next_idx = (idx + 1) % len(custom_seq)
                 
-                # 保存这个群专属的序列进度
+                # 保存这个群独立的序列进度
                 await self.db.update_state_dict(state_key, {
                     idx_key: next_idx, 
                     "last_timestamp": datetime.now().isoformat()
@@ -716,7 +716,7 @@ class TaskManager:
 
             for gid, conf in r_groups.items():
                 if gid:
-                    # 如果全局广播开启了排除，且这个群有独立闹钟，跳过它！
+                    # 如果全局广播开启了排除，且这个群有独立定时，跳过！
                     if exclude_custom_cron and isinstance(conf, dict) and conf.get("cron"):
                         continue
                     targets.append(f"{default_adapter_id}:GroupMessage:{gid}")
@@ -725,6 +725,41 @@ class TaskManager:
                     if exclude_custom_cron and isinstance(conf, dict) and conf.get("cron"):
                         continue
                     targets.append(f"{default_adapter_id}:FriendMessage:{uid}")
+        
+        return targets
+
+    def get_briefing_targets(self):
+        """获取早报的独立广播目标，不填则不发"""
+        targets = []
+        default_adapter_id = self.plugin._cached_adapter_id
+        
+        if not default_adapter_id:
+            try:
+                if hasattr(self.plugin.context, "platform_manager"):
+                    insts = self.plugin.context.platform_manager.get_insts()
+                    for inst in insts:
+                        if hasattr(inst, "metadata") and inst.metadata.id:
+                            default_adapter_id = inst.metadata.id
+                            self.plugin._cached_adapter_id = default_adapter_id
+                            break
+            except Exception: pass
+
+        if not default_adapter_id:
+             default_adapter_id = "aiocqhttp"
+
+        if default_adapter_id:
+            b_groups = self.extra_shares_conf.get("briefing_groups", [])
+            b_users = self.extra_shares_conf.get("briefing_users", [])
+
+            for gid in b_groups:
+                # 只取纯数字，防止用户误填冒号
+                gid_clean = str(gid).split(":")[0].strip()
+                if gid_clean: 
+                    targets.append(f"{default_adapter_id}:GroupMessage:{gid_clean}")
+            for uid in b_users:
+                uid_clean = str(uid).split(":")[0].strip()
+                if uid_clean: 
+                    targets.append(f"{default_adapter_id}:FriendMessage:{uid_clean}")
         
         return targets
 
@@ -748,7 +783,7 @@ class TaskManager:
             if any(k in st_clean for k in ["60s", "六十秒", "读世界"]):
                 url = self.news_service.get_60s_image_url()
                 if not url:
-                    await event.send(event.plain_result("获取60s新闻失败，请检查API Key配置。"))
+                    await event.send(event.plain_result("获取 每天60s读世界 失败，请检查API Key配置。"))
                     return 
                     
                 if to_qzone:
@@ -757,8 +792,8 @@ class TaskManager:
                         self.plugin._inject_qzone_client(qzone_plugin)
                         try:
                             await qzone_plugin.service.publish_post(text="【每天60秒读懂世界】", images=[url])
-                            await event.send(event.plain_result("每天60s读世界已成功分享到QQ空间！"))
-                            await self.db.add_sent_history("qzone_broadcast", "news", "【每天60秒读懂世界】(LLM)", True)
+                            await event.send(event.plain_result("每天60s读世界 已成功分享到QQ空间！"))
+                            await self.db.add_sent_history("qzone_broadcast", "news", "【每天60秒读懂世界】", True)
                         except Exception as e:
                             await event.send(event.plain_result(f"QQ空间分享失败: {e}"))
                     else:
@@ -771,12 +806,12 @@ class TaskManager:
             if any(k in st_clean for k in ["ai资讯", "ai新闻", "ai日报"]) or st_clean == "ai":
                 ai_data = await self.news_service.get_ai_news_json()
                 if not ai_data:
-                    await event.send(event.plain_result("获取AI资讯失败，今日暂无更新。"))
+                    await event.send(event.plain_result("获取 AI资讯快报 失败，今日暂无更新。"))
                     return 
 
                 url = self.news_service.get_ai_news_image_url()
                 if not url:
-                    await event.send(event.plain_result("获取AI资讯图片失败，请检查API Key配置。"))
+                    await event.send(event.plain_result("获取 AI资讯快报 图片失败，请检查API Key配置。"))
                     return 
                     
                 if to_qzone:
@@ -785,8 +820,8 @@ class TaskManager:
                         self.plugin._inject_qzone_client(qzone_plugin)
                         try:
                             await qzone_plugin.service.publish_post(text="【AI资讯快报】", images=[url])
-                            await event.send(event.plain_result("AI资讯快报已成功分享到QQ空间！"))
-                            await self.db.add_sent_history("qzone_broadcast", "news", "【AI资讯快报】(LLM)", True)
+                            await event.send(event.plain_result("AI资讯快报 已成功分享到QQ空间！"))
+                            await self.db.add_sent_history("qzone_broadcast", "news", "【AI资讯快报】", True)
                         except Exception as e:
                             await event.send(event.plain_result(f"QQ空间分享失败: {e}"))
                     else:
@@ -984,7 +1019,7 @@ class TaskManager:
         """执行早报分享：依次发送开启的 60s 和 AI 资讯"""
         if self.plugin._is_terminated: return
         
-        logger.info("[DailySharing] 开始执行独立早报任务")
+        logger.info("[DailySharing] 开始执行早报分享任务")
         
         # 1. 收集需要分享的图片 URL
         images_to_send = [] 
@@ -994,15 +1029,15 @@ class TaskManager:
         
         if self.extra_shares_conf.get("enable_60s_news", False):
             url = self.news_service.get_60s_image_url()
-            if url: images_to_send.append(("60s新闻", url))
+            if url: images_to_send.append(("每天60s读世界", url))
 
         if self.extra_shares_conf.get("enable_ai_news", False):
             ai_data = await self.news_service.get_ai_news_json()
             if ai_data:
                 url = self.news_service.get_ai_news_image_url()
-                if url: images_to_send.append(("AI资讯", url))
+                if url: images_to_send.append(("AI资讯快报", url))
             else:
-                logger.info("[DailySharing] 获取AI资讯失败，今日暂无更新，跳过推送图片")
+                logger.info("[DailySharing] 获取 AI资讯快报 失败，今日暂无更新，跳过分享图片")
 
         if not images_to_send:
             logger.warning("[DailySharing] 早报任务触发，发现没有开启的早报发送或获取图片失败")
@@ -1020,22 +1055,22 @@ class TaskManager:
                         await qzone_plugin.service.publish_post(text=title, images=[url])
                         await self.db.add_sent_history("qzone_broadcast", "news", f"{title}(定时自动)", True)
                         await asyncio.sleep(3) 
-                        logger.info(f"[DailySharing] 分享早报{name}到QQ空间成功！")
+                        logger.info(f"[DailySharing] 分享早报 {name} 到QQ空间成功！")
                     except Exception as e:
-                        logger.error(f"[DailySharing] 分享早报{name}到QQ空间失败: {e}")
+                        logger.error(f"[DailySharing] 分享早报 {name} 到QQ空间失败: {e}")
             else:
                 logger.warning("[DailySharing] 分享早报到QQ空间开启，但未检测到 astrbot_plugin_qzone 插件")
 
-        # 2. 确定目标
+        # 2. 确定目标 (使用全新的独立列表)
         targets = []
         if specific_target:
             targets.append(specific_target)
         else:
-            targets = self.get_broadcast_targets()
-            logger.info(f"[DailySharing] 早报任务目标: {len(targets)} 个")
+            targets = self.get_briefing_targets()
+            logger.info(f"[DailySharing] 早报将分享到 {len(targets)} 个目标会话")
 
         if not targets:
-            logger.warning("[DailySharing] 未找到任何早报接收目标")
+            logger.info("[DailySharing] 未配置任何早报接收目标，已跳过分享。")
             return
 
         # 3. 分享循环
@@ -1045,7 +1080,7 @@ class TaskManager:
                 for name, url in images_to_send:
                     # 构建消息链
                     msg = MessageChain().url_image(url)
-                    logger.info(f"[DailySharing] 正在分享{name}到{uid}")
+                    logger.info(f"[DailySharing] 正在分享 {name} 到 {uid}")
                     await self.plugin.context.send_message(uid, msg)
                     # 每张图之间间隔 1 秒
                     await asyncio.sleep(1)
@@ -1068,7 +1103,7 @@ class TaskManager:
         if specific_target:
             targets.append(specific_target)
         else:
-            # 如果是被全局大定时器唤醒，排除掉那些配置了独立闹钟的群，绝不打扰它们
+            # 如果是被全局大定时器唤醒，排除掉那些配置了独立定时的群，绝不打扰它们
             targets = self.get_broadcast_targets(exclude_custom_cron=True)
 
         if not targets:
@@ -1087,7 +1122,7 @@ class TaskManager:
                 # 提取纯数字ID用于读取字典配置
                 adapter_id, real_id = self.ctx_service._parse_umo(uid)
                 
-                # 读取该群聊、私聊专属的类型策略配置（默认 fallback 为 global 设定的 sharing_type）
+                # 读取该群聊、私聊独立的类型策略配置（默认 fallback 为 global 设定的 sharing_type）
                 target_specific_type = self.basic_conf.get("sharing_type", "auto")
                 if is_group and real_id in r_groups:
                     conf = r_groups[real_id]
@@ -1256,7 +1291,7 @@ class TaskManager:
 
             self.plugin._inject_qzone_client(qzone_plugin)
             period = self.get_curr_period()
-            # 注意这里传入 is_qzone=True，使用专属序列
+            # 注意这里传入 is_qzone=True，使用独立序列
             stype = force_type if force_type else await self.decide_type_with_state(period, is_qzone=True) 
             logger.info(f"[DailySharing] QQ空间时段: {period.value}, 类型: {stype.value}")
 
