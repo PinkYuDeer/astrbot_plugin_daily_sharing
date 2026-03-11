@@ -137,20 +137,20 @@
     "hint": "设置定时规则和分享类型策略。",
     "items": {
       "trigger_mode": {
-        "description": "定时触发模式",
+        "description": "定时分享模式",
         "type": "string",
         "default": "cron",
         "options": ["cron", "random_period"],
-        "hint": "cron=固定时间点触发 | random_period=在下方配置的多个时间段内随机触发"
+        "hint": "cron=固定时间点分享 | random_period=在下方配置的多个时间段内随机分享"
       },
       "random_periods": {
-        "description": "随机触发时间段",
+        "description": "随机分享时间段",
         "type": "list",
         "items": {
           "type": "string"
         },
         "default": ["08:00-10:00", "19:00-21:00"],
-        "hint": "仅在 random_period 模式下生效。格式：HH:MM-HH:MM。每天会在这些时间段内随机选取一个时间点触发分享。"
+        "hint": "仅在 random_period 模式下生效。格式：HH:MM-HH:MM。每天会在这些时间段内随机选取一个时间点分享。"
       },
       "sharing_cron": {
         "description": "定时分享时间",
@@ -361,10 +361,10 @@
   "news_conf": {
     "description": "📰 新闻热搜设置",
     "type": "object",
-    "hint": "配置新闻源、API密钥及获取策略。",
+    "hint": "配置新闻热搜源、API密钥及获取策略。",
     "items": {
       "enable_news_api": {
-        "description": "启用新闻API",
+        "description": "启用新闻热搜 API",
         "type": "bool",
         "default": true,
         "hint": "开启后，分享新闻类型时会自动获取真实热搜数据（需要配置API密钥）。关闭则使用纯LLM生成新闻内容."
@@ -376,31 +376,31 @@
         "hint": "https://api.nycnm.cn 获取API密钥"
       },
       "news_random_mode": {
-        "description": "新闻源模式",
+        "description": "新闻热搜源模式",
         "type": "string",
         "default": "config",
         "options": ["fixed", "random", "config", "time_based"],
-        "hint": "fixed=固定新闻源 | random=每次从所有新闻源中随机 | config=从随机源列中随机（权重平均，会重复） | time_based=根据时间段智能选择"
+        "hint": "fixed=固定新闻热搜源 | random=每次从所有新闻热搜源中随机 | config=从随机新闻热搜源列表中随机（权重平均，会重复） | time_based=根据时间段智能选择新闻热搜源"
       },
       "news_random_sources": {
-        "description": "随机源列表",
+        "description": "随机新闻热搜源列表",
         "type": "list",
         "items": {
           "type": "string",
           "options": ["zhihu", "weibo", "bili", "xiaohongshu", "douyin", "toutiao", "baidu", "tencent", "quark", "36kr", "51cto", "acfun", "ifanr", "netease", "sina", "thepaper", "yicai"],
-          "hint": "新闻源模式为'config'或'time_based'时生效。从此列表中随机选择新闻源，增加内容多样性。推荐配置2-5个常用源。"
+          "hint": "新闻热搜源模式为'config'或'time_based'时生效。从此列表中随机选择新闻热搜源，增加内容多样性。推荐配置2-5个常用新闻热搜源。"
         },
         "default": ["zhihu", "weibo", "bili"]
       },
       "news_api_source": {
-        "description": "固定新闻源",
+        "description": "固定新闻热搜源",
         "type": "string",
         "default": "zhihu",
         "options": ["zhihu", "weibo", "bili", "xiaohongshu", "douyin", "toutiao", "baidu", "tencent", "quark", "36kr", "51cto", "acfun", "ifanr", "netease", "sina", "thepaper", "yicai"],
-        "hint": "仅在新闻源模式为 fixed 时生效。"
+        "hint": "仅在新闻热搜源模式为 fixed 时生效。"
       },
       "news_items_count": {
-        "description": "获取新闻条数",
+        "description": "获取新闻热搜条数",
         "type": "int",
         "default": 5,
         "slider": {
@@ -408,22 +408,16 @@
             "max": 20,
             "step": 1
         },          
-        "hint": "从API获取的热搜条数（1-20），推荐5-10条。获取更多可增加随机选择范围"
+        "hint": "从API获取的新闻热搜条数（1-20），推荐5-10条。获取更多可增加随机选择范围"
       },
       "news_share_count": {
-        "description": "分享新闻条",
+        "description": "分享新闻热搜条数",
         "type": "string",
         "default": "1-2",
-        "hint": "实际分享的新闻条数，可以是固定值(如'2')或范围(如：2-3)。最终会从获取新闻中随机选择，避免每次都一样"
-      },
-      "enable_tavily_search": {
-        "description": "启用 Tavily 检索分享内容",
-        "type": "bool",
-        "default": true,
-        "hint": "开启后，在分享新闻、知识和推荐时调用 Tavily 检索分享内容背景（在 AstrBot 普通配置-AI配置-网页搜索配置 Tavily），关闭则由 LLM 脑补生成。"
+        "hint": "实际分享的新闻热搜条数，可以是固定值(如'2')或范围(如：2-3)。最终会从获取新闻热搜中随机选择，避免每次都一样"
       },
       "news_api_timeout": {
-        "description": "API超时(秒)",
+        "description": "新闻热搜 API 超时(秒)",
         "type": "int",
         "default": 30,
         "slider": {
@@ -432,7 +426,13 @@
             "step": 1
         },         
         "hint": "获取新闻热搜的超时时间"
-      }
+      },
+      "enable_tavily_search": {
+        "description": "启用 Tavily 检索分享内容",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后，在分享新闻、知识和推荐时调用 Tavily 检索分享内容背景（在 AstrBot 普通配置-AI配置-网页搜索配置 Tavily），关闭则由 LLM 脑补生成。"
+      }      
     }
   },
   "image_conf": {
@@ -447,10 +447,10 @@
         "hint": "需要安装 astrbot_plugin_gitee_aiimg 插件才能使用。"
       },
       "attach_hot_news_image": {
-        "description": "新闻附带热搜长图",
+        "description": "新闻热搜附带长图",
         "type": "bool",
         "default": true,
-        "hint": "开启后，如果新闻类型未生成配图，则发送新闻热搜长图。"
+        "hint": "开启后，如果新闻热搜类型未生成配图，则发送新闻热搜长图。"
       },
       "use_gitee_selfie_ref": {
         "description": "启用形象参考图",
@@ -597,7 +597,7 @@
         "description": "说说附带新闻热搜长图",
         "type": "bool",
         "default": true,
-        "hint": "开启后，如果新闻类型未生成配图，则发送新闻热搜长图。"
+        "hint": "开启后，如果新闻热搜类型未生成配图，则发送新闻热搜长图。"
       },
       "qzone_image_enabled_types": {
         "description": "允许说说配图的类型",
