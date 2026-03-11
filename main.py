@@ -193,7 +193,7 @@ class DailySharingPlugin(Star):
         except Exception as e:
             logger.error(f"[DailySharing] 保存配置失败: {e}")
 
-    async def _call_llm_wrapper(self, prompt: str, system_prompt: str = None, timeout: int = 60, max_retries: int = 2) -> Optional[str]:
+    async def _call_llm_wrapper(self, prompt: str, system_prompt: str = None, timeout: int = 60, max_retries: int = 2, tools: list = None) -> Optional[str]:
         """LLM 调用包装器（支持失败重试与自动降级）"""
         if self._is_terminated: return None
         
@@ -240,6 +240,8 @@ class DailySharingPlugin(Star):
                     kwargs["system_prompt"] = system_prompt
                 if current_provider_id:
                     kwargs["chat_provider_id"] = current_provider_id
+                if tools:
+                    kwargs["func_tool_names"] = tools
 
                 resp = await asyncio.wait_for(
                     self.context.llm_generate(**kwargs),
@@ -532,4 +534,3 @@ class DailySharingPlugin(Star):
                 target_desc = "配置的所有群聊和私聊" if is_broadcast else "当前会话"
                 yield event.plain_result(f"正在向{target_desc}生成并分享{type_cn} ...")
                 await self.task_manager.execute_share(force_type, specific_target=specific_target)
-                

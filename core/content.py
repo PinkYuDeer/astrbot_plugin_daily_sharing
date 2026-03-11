@@ -2,6 +2,7 @@ import random
 import json
 import os
 import re
+import aiohttp
 import aiofiles
 import asyncio
 from functools import partial
@@ -451,8 +452,73 @@ class ContentService:
         
         return await self.call_llm(prompt=prompt, system_prompt=ctx['persona'])
 
+    async def _fetch_search_tavily(self, keyword: str, search_type: str = "news") -> Tuple[str, str]:
+        """调用 AstrBot 内置的 Tavily 进行搜索"""
+        
+        tavily_key = os.getenv("TAVILY_API_KEY") 
+        
+        if not tavily_key:
+            config_paths = [
+                "data/cmd_config.json", 
+                "cmd_config.json"
+            ]
+            for path in config_paths:
+                if os.path.exists(path):
+                    try:
+                        with open(path, 'r', encoding='utf-8-sig') as f:
+                            config_data = json.load(f)
+                            keys = config_data.get("provider_settings", {}).get("websearch_tavily_key", [])
+                            if isinstance(keys, list) and len(keys) > 0:
+                                tavily_key = keys[0] 
+                                break
+                            elif isinstance(keys, str) and keys:
+                                tavily_key = keys
+                                break
+                    except Exception as e:
+                        continue
+
+        if not tavily_key:
+            return keyword, ""
+
+        url = "https://api.tavily.com/search"
+        headers = {"Content-Type": "application/json"}
+        
+        # 根据请求类型动态调整搜索词
+        if search_type == "news":
+            current_date = datetime.now().strftime("%Y年%m月%d日")
+            search_query = f"{keyword} {current_date} 最新进展 实时动态 事件背景"
+        elif search_type == "knowledge":
+            search_query = f"什么是 {keyword} ？ 科普 原理 详细解释"
+        elif search_type == "rec":
+            search_query = f"{keyword} 作品简介 评价 核心亮点"
+        else:
+            search_query = keyword
+            
+        payload = {
+            "api_key": tavily_key,
+            "query": search_query,
+            "search_depth": "basic",
+            "include_answer": False, 
+            "max_results": 2
+        }
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=payload, timeout=8) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        results = data.get("results", [])
+                        if results:
+                            combined_content = " ".join([r.get("content", "") for r in results])
+                            clean_content = combined_content.replace('\n', ' ').strip()
+                            return keyword, clean_content[:400]
+        except Exception as e:
+            logger.error(f"[Tavily 搜索功能异常] {keyword}: {e}")
+        
+        return keyword, ""
+
     async def _gen_news(self, news_data: Tuple[List, str], ctx: dict):
-        """生成新闻分享，无数据则不生成"""
+        """生成新闻分享，带基于 Tavily 的自动联网核查功能"""
         if not news_data:
             logger.warning("[内容服务] 未获取到新闻数据，取消分享")
             return None
@@ -464,10 +530,23 @@ class ContentService:
 
         # 0. 获取配置
         allow_detail = self.context_conf.get("group_share_schedule", False)
+        enable_tavily = self.news_conf.get("enable_tavily_search", True)
 
         news_list, source_key = news_data
         source_config = NEWS_SOURCE_MAP.get(source_key, {"name": "热搜", "icon": "📰"})
         source_name = source_config["name"]
+        
+        items_limit = self.news_conf.get("news_items_count", 5)
+        selected_to_search = news_list[:items_limit]
+
+        # 并发调用内置的 Tavily 搜索来获取新闻真相
+        if enable_tavily:
+            logger.info(f"[内容服务] 正在为 {source_name} 自动检索新闻背景...")
+            tasks = [self._fetch_search_tavily(item.get("title", ""), "news") for item in selected_to_search]
+            search_results = await asyncio.gather(*tasks)
+        else:
+            logger.info(f"[内容服务] Tavily 搜索功能已关闭，跳过检索。")
+            search_results = [(item.get("title", ""), "") for item in selected_to_search]
         
         raw_share_count = self.news_conf.get("news_share_count", "1-2")
         try:
@@ -484,21 +563,20 @@ class ContentService:
         except:
             share_count = 2
 
-        items_limit = self.news_conf.get("news_items_count", 5)
-        
         news_text = f"【{source_name}】\n\n"
-        for idx, item in enumerate(news_list[:items_limit], 1):
+        for idx, (item, (s_title, s_bg)) in enumerate(zip(selected_to_search, search_results), 1):
             hot = item.get("hot", "")
             title = item.get("title", "")
+            hot_display = ""
             if hot:
                 hot_str = str(hot)
                 if hot_str.isdigit() and int(hot_str) > 10000:
-                    hot_display = f"{int(hot_str) / 10000:.1f}万"
+                    hot_display = f" {int(hot_str) / 10000:.1f}万"
                 else:
-                    hot_display = hot_str
-                news_text += f"{idx}. {title} {hot_display}\n"
-            else:
-                news_text += f"{idx}. {title}\n"
+                    hot_display = f" {hot_str}"
+            
+            bg_str = f"\n  -> [真实事件细节]: {s_bg}" if s_bg else ""
+            news_text += f"{idx}. {title}{hot_display}{bg_str}\n"
         
         # 称呼控制
         address_rule = ""
@@ -534,11 +612,15 @@ class ContentService:
 【当前时间】{ctx['date_str']} {ctx['time_str']} ({ctx['period_label']})
 你看到了今天的{source_name}，想选择{share_count}条和{target_str}分享。
 
+【事实核查指令】
+下面提供的新闻列表可能已经由系统预先完成了联网检索，包含了事件的真实细节。
+如果新闻下方附带有 `[真实事件细节]`，你**绝对不能只读标题自由脑补**，必须把其中的真相融入到你的文案中！
+
 {user_info_prompt}
 {ctx['life_hint']}
 {ctx['chat_hint']}
 {dynamics_prompt}
-{source_name}：
+{source_name}（含检索真相）：
 {news_text}
 
 【严重警告 - 拒绝尴尬开头】
@@ -563,7 +645,7 @@ class ContentService:
 要求：
 1. 以你的人设性格说话，真实自然
 2. 选择{share_count}条你最感兴趣的热搜
-3. {'对每条' if share_count > 1 else '对这条'}热搜要有自己的真实观点，不只是转述
+3. {'对每条' if share_count > 1 else '对这条'}热搜要有自己的真实观点，如果有事实细节，必须结合细节进行锐评，不能像没营养的复读机
 4. 观点真诚，避免过度情绪化或标题党式表达
 5. {'群聊中简洁有重点' if is_group else '私聊可以详细展开想法，并结合你当下的状态'}
 6. 用【】标注热搜标题
@@ -582,7 +664,7 @@ class ContentService:
     async def _gen_knowledge(self, ctx: dict):
         """生成知识分享，API 失败则使用 LLM 兜底"""
         if not self.news_service:
-            logger.warning("[内容服务] 无法调用百科服务，无法查询相关资料，取消分享")
+            logger.warning("[内容服务] 无法调用百度百科服务，无法查询相关资料，取消分享")
             return None
 
         is_group = ctx['is_group']
@@ -592,6 +674,7 @@ class ContentService:
 
         # 0. 获取配置
         allow_detail = self.context_conf.get("group_share_schedule", False)
+        enable_tavily = self.news_conf.get("enable_tavily_search", True)
         
         # 随机选择大类和子类
         main_cat = random.choice(list(self.knowledge_cats.keys()))
@@ -606,16 +689,24 @@ class ContentService:
             logger.warning("[内容服务] 无法生成知识关键词，取消分享")
             return None
         
-        # 2. 查百科 (增加兜底逻辑)
-        info = await self.news_service.get_baike_info(target_keyword)
+        # 2. 并发查百度百科和 Tavily 搜索
+        baike_task = asyncio.create_task(self.news_service.get_baike_info(target_keyword))
+        tavily_task = asyncio.create_task(self._fetch_search_tavily(target_keyword, "knowledge")) if enable_tavily else None
         
-        if info:
-            # 命中 API
-            baike_context = f"\n\n【事实依据（不要捏造）】\n{info}\n"
-            logger.info(f"[内容服务] 百度百科命中: {target_keyword}")
+        info = await baike_task
+        tavily_info = ""
+        if tavily_task:
+            _, tavily_info = await tavily_task
+        
+        if info or tavily_info:
+            baike_context = f"\n\n【参考资料（请基于以下真实数据进行通俗化讲解，绝对不要自行捏造）】\n"
+            if info:
+                baike_context += f"百度百科词条：{info}\n"
+            if tavily_info:
+                baike_context += f"全网检索：{tavily_info}\n"
+            logger.info(f"[内容服务] 知识资料获取成功: {target_keyword} (百度百科命中: {'是' if info else '否'}, Tavily 检索命中: {'是' if tavily_info else '否'})")
         else:
-            # 未命中 API，使用 LLM 兜底
-            logger.warning(f"[内容服务] 百科未命中【{target_keyword}】，将使用 LLM 内部知识库兜底")
+            logger.warning(f"[内容服务] 未命中任何外部资料，将使用 LLM 内部知识库兜底")
             baike_context = f"\n\n【提示】暂无外部资料，请基于你自己的知识库，准确介绍【{target_keyword}】。"
         
         # 3. 称呼控制
@@ -669,7 +760,7 @@ class ContentService:
 
 【拒绝神怪/脑补开头】
 - 严禁使用“脑子里突然蹦出”、“突然灵光一闪”、“不知怎么的突然想到”等描述思维跳跃的语句。
-- 严禁描述你大脑内部的运作过程（如“我的数据库检索到”）。
+- 严禁描述你大脑内部的运作过程。
 - 必须像个正常人类一样，自然地开启话题。
 
 【严重警告 - 拒绝尴尬开头】
@@ -714,7 +805,7 @@ class ContentService:
     async def _gen_rec(self, ctx: dict):
         """生成推荐，API 失败则使用 LLM 兜底"""
         if not self.news_service:
-            logger.warning("[内容服务] 无法调用百科服务，无法查询相关资料，取消分享")
+            logger.warning("[内容服务] 无法调用百度百科服务，无法查询相关资料，取消分享")
             return None
 
         is_group = ctx['is_group']
@@ -724,6 +815,7 @@ class ContentService:
 
         # 0. 获取配置
         allow_detail = self.context_conf.get("group_share_schedule", False)
+        enable_tavily = self.news_conf.get("enable_tavily_search", True)
         
         # 随机选择大类和子类
         rec_type = random.choice(list(self.rec_cats.keys()))
@@ -739,19 +831,25 @@ class ContentService:
              logger.warning("[内容服务] 无法生成推荐作品名，取消分享")
              return None
 
-        baike_context = ""
+        # 2. 并发查百度百科和 Tavily 搜索
+        baike_task = asyncio.create_task(self.news_service.get_baike_info(target_work))
+        tavily_task = asyncio.create_task(self._fetch_search_tavily(target_work, "rec")) if enable_tavily else None
         
-        # 2. 查百科 (增加兜底逻辑)
-        info = await self.news_service.get_baike_info(target_work)
-        
-        if info:
-            # 命中 API
-             baike_context = f"\n\n【资料简介（真实数据）】\n{info}\n"
-             logger.info(f"[内容服务] 百度百科命中: {target_work}")
+        info = await baike_task
+        tavily_info = ""
+        if tavily_task:
+            _, tavily_info = await tavily_task
+
+        if info or tavily_info:
+            baike_context = f"\n\n【资料简介（真实数据，请严格参考它来推荐，绝对不要自行捏造）】\n"
+            if info:
+                baike_context += f"百度百科简介：{info}\n"
+            if tavily_info:
+                baike_context += f"全网评价与亮点：{tavily_info}\n"
+            logger.info(f"[内容服务] 推荐资料获取成功: {target_work} (百度百科命中: {'是' if info else '否'}, Tavily 检索命中: {'是' if tavily_info else '否'})")
         else:
-            # 未命中 API，使用 LLM 兜底
-             logger.warning(f"[内容服务] 百科未命中【{target_work}】，将使用 LLM 内部知识库兜底")
-             baike_context = f"\n\n【提示】暂无外部资料，请基于你自己的知识库，真诚推荐【{target_work}】。"
+            logger.warning(f"[内容服务] 未命中任何外部资料，将使用 LLM 内部知识库兜底")
+            baike_context = f"\n\n【提示】暂无外部资料，请基于你自己的知识库，真诚推荐【{target_work}】。"
 
         # 3. 称呼控制
         address_rule = ""
@@ -839,4 +937,3 @@ class ContentService:
             except: pass
             return f"推荐类型: {rec_type} - {sub_style}\n\n{res}"
         return None
-        

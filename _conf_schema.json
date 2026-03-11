@@ -359,7 +359,7 @@
     }
   },
   "news_conf": {
-    "description": "📰 新闻热榜设置",
+    "description": "📰 新闻热搜设置",
     "type": "object",
     "hint": "配置新闻源、API密钥及获取策略。",
     "items": {
@@ -415,6 +415,12 @@
         "type": "string",
         "default": "1-2",
         "hint": "实际分享的新闻条数，可以是固定值(如'2')或范围(如：2-3)。最终会从获取新闻中随机选择，避免每次都一样"
+      },
+      "enable_tavily_search": {
+        "description": "启用 Tavily 检索分享内容",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后，在分享新闻、知识和推荐时调用 Tavily 检索分享内容背景（在 AstrBot 普通配置-AI配置-网页搜索配置 Tavily），关闭则由 LLM 脑补生成。"
       },
       "news_api_timeout": {
         "description": "API超时(秒)",
