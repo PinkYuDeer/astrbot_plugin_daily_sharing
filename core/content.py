@@ -498,20 +498,28 @@ class ContentService:
             "api_key": tavily_key,
             "query": search_query,
             "search_depth": "basic",
-            "include_answer": False, 
+            "include_answer": True, 
             "max_results": 2
         }
 
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, headers=headers, json=payload, timeout=8) as resp:
+                async with session.post(url, headers=headers, json=payload, timeout=10) as resp:
                     if resp.status == 200:
                         data = await resp.json()
+                        
+                        # 1. 如果有官方生成的精炼 Answer，无脑优先使用！
+                        answer = data.get("answer", "").strip()
+                        if answer:
+                            return keyword, answer
+                            
+                        # 2. 如果没有 Answer，退而求其次拼接 contents
                         results = data.get("results", [])
                         if results:
                             combined_content = " ".join([r.get("content", "") for r in results])
-                            clean_content = combined_content.replace('\n', ' ').strip()
-                            return keyword, clean_content[:400]
+                            # 去除多余的换行和空格，防止被垃圾导航栏占满字数
+                            clean_content = re.sub(r'\s+', ' ', combined_content).strip()
+                            return keyword, clean_content[:350]
         except Exception as e:
             logger.error(f"[Tavily 搜索功能异常] {keyword}: {e}")
         
@@ -575,8 +583,8 @@ class ContentService:
                 else:
                     hot_display = f" {hot_str}"
             
-            bg_str = f"\n  -> [真实事件细节]: {s_bg}" if s_bg else ""
-            news_text += f"{idx}. {title}{hot_display}{bg_str}\n"
+            bg_str = f"\n  -> [必须参考的真实背景]: {s_bg}" if s_bg else "\n  -> [真实背景]: 无，请仅就标题做字面简评，严禁擅自编造"
+            news_text += f"{idx}. 标题：【{title}】{hot_display}{bg_str}\n\n"
         
         # 称呼控制
         address_rule = ""
