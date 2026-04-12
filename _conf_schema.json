@@ -428,11 +428,11 @@
         "hint": "获取新闻热搜的超时时间"
       },
       "enable_tavily_search": {
-        "description": "启用 Tavily 检索分享内容",
+        "description": "启用 Web 检索分享内容",
         "type": "bool",
         "default": true,
-        "hint": "开启后，在分享新闻、知识和推荐时调用 Tavily 检索分享内容背景（在 AstrBot 普通配置-AI配置-网页搜索配置 Tavily），关闭则由 LLM 脑补生成。"
-      }      
+        "hint": "开启后，在分享新闻、知识和推荐时调用搜索引擎检索分享内容背景（在 AstrBot 普通配置-AI配置-网页搜索配置 Tavily或Brave），关闭则由 LLM 脑补生成。"
+      }    
     }
   },
   "image_conf": {

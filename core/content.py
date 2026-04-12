@@ -452,17 +452,12 @@ class ContentService:
         
         return await self.call_llm(prompt=prompt, system_prompt=ctx['persona'])
 
-    async def _fetch_search_tavily(self, keyword: str, search_type: str = "news") -> Tuple[str, str]:
-        """调用 AstrBot 内置的 Tavily 进行搜索，支持多Key轮询与失败重试"""
+    async def _fetch_web_search(self, keyword: str, search_type: str = "news") -> Tuple[str, str]:
+        """调用 AstrBot 内置的搜索引擎 (支持 Tavily / Brave) 进行搜索，支持多Key轮询与失败重试"""
+        provider = "tavily"
+        search_keys = []
         
-        tavily_keys = []
-        
-        # 1. 尝试环境变量
-        env_key = os.getenv("TAVILY_API_KEY") 
-        if env_key:
-            tavily_keys.append(env_key)
-            
-        # 2. 尝试从配置文件中读取列表
+        # 1. 尝试从配置文件中读取列表
         config_paths = [
             "data/cmd_config.json", 
             "cmd_config.json"
@@ -472,23 +467,36 @@ class ContentService:
                 try:
                     with open(path, 'r', encoding='utf-8-sig') as f:
                         config_data = json.load(f)
-                        keys = config_data.get("provider_settings", {}).get("websearch_tavily_key", [])
+                        ps = config_data.get("provider_settings", {})
+                        provider = ps.get("websearch_provider", "tavily").lower()
+                        
+                        if provider == "brave":
+                            keys = ps.get("websearch_brave_key", [])
+                        else:
+                            keys = ps.get("websearch_tavily_key", [])
+                            
                         if isinstance(keys, list):
-                            tavily_keys.extend(keys)
+                            search_keys.extend(keys)
                         elif isinstance(keys, str) and keys:
-                            tavily_keys.append(keys)
+                            search_keys.append(keys)
                 except Exception as e:
                     continue
 
-        # 去重并保持顺序
-        tavily_keys = list(dict.fromkeys(tavily_keys))
+        # 2. 尝试环境变量
+        if provider == "brave":
+            env_key = os.getenv("BRAVE_API_KEY")
+        else:
+            env_key = os.getenv("TAVILY_API_KEY")
+            
+        if env_key:
+            search_keys.append(env_key)
 
-        if not tavily_keys:
+        # 去重并保持顺序
+        search_keys = list(dict.fromkeys(search_keys))
+
+        if not search_keys:
             return keyword, ""
 
-        url = "https://api.tavily.com/search"
-        headers = {"Content-Type": "application/json"}
-        
         # 根据请求类型动态调整搜索词
         if search_type == "news":
             current_date = datetime.now().strftime("%Y年%m月%d日")
@@ -501,51 +509,94 @@ class ContentService:
             search_query = keyword
             
         async with aiohttp.ClientSession() as session:
-            for attempt, current_key in enumerate(tavily_keys):
-                payload = {
-                    "api_key": current_key,
-                    "query": search_query,
-                    "search_depth": "basic",
-                    "include_answer": True, 
-                    "max_results": 2
-                }
-
-                try:
-                    async with session.post(url, headers=headers, json=payload, timeout=10) as resp:
-                        if resp.status == 200:
-                            data = await resp.json()
-                            
-                            # 1. 如果有官方生成的精炼 Answer，无脑优先使用！
-                            answer = data.get("answer", "").strip()
-                            if answer:
-                                return keyword, answer
+            for attempt, current_key in enumerate(search_keys):
+                if provider == "brave":
+                    url = "https://api.search.brave.com/res/v1/web/search"
+                    headers = {
+                        "Accept": "application/json",
+                        "X-Subscription-Token": current_key
+                    }
+                    params = {
+                        "q": search_query,
+                        "count": "3" # 限制条数，加速处理
+                    }
+                    try:
+                        async with session.get(url, headers=headers, params=params, timeout=10) as resp:
+                            if resp.status == 200:
+                                data = await resp.json()
+                                web_data = data.get("web") or {}
+                                results = web_data.get("results") or []
                                 
-                            # 2. 如果没有 Answer，退而求其次拼接 contents
-                            results = data.get("results", [])
-                            if results:
-                                combined_content = " ".join([r.get("content", "") for r in results])
-                                # 去除多余的换行和空格
-                                clean_content = re.sub(r'\s+', ' ', combined_content).strip()
-                                return keyword, clean_content[:350]
-                            
-                            return keyword, ""
-                            
-                        else:
-                            # 额度用尽、Key无效等情况（400, 401, 429...）
-                            error_text = await resp.text()
-                            logger.warning(f"[Tavily] API Key {attempt+1} 失败，即将尝试下一个。")
-                            continue 
-                            
-                except Exception as e:
-                    logger.warning(f"[Tavily] API Key {attempt+1} 请求异常: {e}，即将尝试下一个。")
-                    continue
+                                if results:
+                                    combined_content = ""
+                                    for r in results:
+                                        # 安全处理可能为 null 的 description
+                                        desc = r.get("description")
+                                        if desc:
+                                            combined_content += str(desc) + " "
+                                        
+                                        # 安全处理可能为 null 的 extra_snippets
+                                        extra = r.get("extra_snippets")
+                                        if isinstance(extra, list):
+                                            combined_content += " ".join(str(e) for e in extra if e) + " "
+                                    
+                                    clean_content = re.sub(r'\s+', ' ', combined_content).strip()
+                                    return keyword, clean_content[:350]
+                                    
+                                return keyword, ""
+                            else:
+                                error_text = await resp.text()
+                                logger.warning(f"[Brave] API Key {attempt+1} 失败，即将尝试下一个。")
+                                continue 
+                    except Exception as e:
+                        logger.warning(f"[Brave] API Key {attempt+1} 请求异常: {e}，即将尝试下一个。")
+                        continue
+                else:
+                    url = "https://api.tavily.com/search"
+                    headers = {"Content-Type": "application/json"}
+                    payload = {
+                        "api_key": current_key,
+                        "query": search_query,
+                        "search_depth": "basic",
+                        "include_answer": True, 
+                        "max_results": 2
+                    }
+
+                    try:
+                        async with session.post(url, headers=headers, json=payload, timeout=10) as resp:
+                            if resp.status == 200:
+                                data = await resp.json()
+                                
+                                # 1. 如果有官方生成的精炼 Answer，无脑优先使用！
+                                answer = data.get("answer") or ""
+                                answer = answer.strip()
+                                if answer:
+                                    return keyword, answer
+                                    
+                                # 2. 如果没有 Answer，退而求其次拼接 contents
+                                results = data.get("results") or []
+                                if results:
+                                    combined_content = " ".join([str(r.get("content", "")) for r in results])
+                                    clean_content = re.sub(r'\s+', ' ', combined_content).strip()
+                                    return keyword, clean_content[:350]
+                                
+                                return keyword, ""
+                                
+                            else:
+                                error_text = await resp.text()
+                                logger.warning(f"[Tavily] API Key {attempt+1} 失败，即将尝试下一个。")
+                                continue 
+                                
+                    except Exception as e:
+                        logger.warning(f"[Tavily] API Key {attempt+1} 请求异常: {e}，即将尝试下一个。")
+                        continue
         
         # 如果循环结束还没 return，说明所有的 Key 都失败了
-        logger.error(f"[Tavily 搜索功能异常] {keyword}: 所有配置的 API Key 均已失效或超额。")
+        logger.error(f"[{provider.capitalize()} 搜索功能异常] {keyword}: 所有配置的 API Key 均已失效或超额。")
         return keyword, ""
 
     async def _gen_news(self, news_data: Tuple[List, str], ctx: dict):
-        """生成新闻分享，带基于 Tavily 的自动联网核查功能"""
+        """生成新闻分享，带基于 Web 搜索 的自动联网核查功能"""
         if not news_data:
             logger.warning("[内容服务] 未获取到新闻数据，取消分享")
             return None
@@ -557,7 +608,7 @@ class ContentService:
 
         # 0. 获取配置
         allow_detail = self.context_conf.get("group_share_schedule", False)
-        enable_tavily = self.news_conf.get("enable_tavily_search", True)
+        enable_web_search = self.news_conf.get("enable_tavily_search", True)
 
         news_list, source_key = news_data
         source_config = NEWS_SOURCE_MAP.get(source_key, {"name": "热搜", "icon": "📰"})
@@ -566,13 +617,13 @@ class ContentService:
         items_limit = self.news_conf.get("news_items_count", 5)
         selected_to_search = news_list[:items_limit]
 
-        # 并发调用内置的 Tavily 搜索来获取新闻真相
-        if enable_tavily:
+        # 并发调用内置的 Web 搜索来获取新闻真相
+        if enable_web_search:
             logger.info(f"[内容服务] 正在为 {source_name} 自动检索新闻背景...")
-            tasks = [self._fetch_search_tavily(item.get("title", ""), "news") for item in selected_to_search]
+            tasks = [self._fetch_web_search(item.get("title", ""), "news") for item in selected_to_search]
             search_results = await asyncio.gather(*tasks)
         else:
-            logger.info(f"[内容服务] Tavily 搜索功能已关闭，跳过检索。")
+            logger.info(f"[内容服务] Web 搜索功能已关闭，跳过检索。")
             search_results = [(item.get("title", ""), "") for item in selected_to_search]
         
         raw_share_count = self.news_conf.get("news_share_count", "1-2")
@@ -704,7 +755,7 @@ class ContentService:
 
         # 0. 获取配置
         allow_detail = self.context_conf.get("group_share_schedule", False)
-        enable_tavily = self.news_conf.get("enable_tavily_search", True)
+        enable_web_search = self.news_conf.get("enable_tavily_search", True)
         
         # 随机选择大类和子类
         main_cat = random.choice(list(self.knowledge_cats.keys()))
@@ -719,9 +770,9 @@ class ContentService:
             logger.warning("[内容服务] 无法生成知识关键词，取消分享")
             return None
         
-        # 2. 并发查百度百科和 Tavily 搜索
+        # 2. 并发查百度百科和 Web 搜索
         baike_task = asyncio.create_task(self.news_service.get_baike_info(target_keyword))
-        tavily_task = asyncio.create_task(self._fetch_search_tavily(target_keyword, "knowledge")) if enable_tavily else None
+        tavily_task = asyncio.create_task(self._fetch_web_search(target_keyword, "knowledge")) if enable_web_search else None
         
         info = await baike_task
         tavily_info = ""
@@ -734,7 +785,7 @@ class ContentService:
                 baike_context += f"百度百科词条：{info}\n"
             if tavily_info:
                 baike_context += f"全网检索：{tavily_info}\n"
-            logger.info(f"[内容服务] 知识资料获取成功: {target_keyword} (百度百科命中: {'是' if info else '否'}, Tavily 检索命中: {'是' if tavily_info else '否'})")
+            logger.info(f"[内容服务] 知识资料获取成功: {target_keyword} (百度百科命中: {'是' if info else '否'}, Web 检索命中: {'是' if tavily_info else '否'})")
         else:
             logger.warning(f"[内容服务] 未命中任何外部资料，将使用 LLM 内部知识库兜底")
             baike_context = f"\n\n【提示】暂无外部资料，请基于你自己的知识库，准确介绍【{target_keyword}】。"
@@ -845,7 +896,7 @@ class ContentService:
 
         # 0. 获取配置
         allow_detail = self.context_conf.get("group_share_schedule", False)
-        enable_tavily = self.news_conf.get("enable_tavily_search", True)
+        enable_web_search = self.news_conf.get("enable_tavily_search", True)
         
         # 随机选择大类和子类
         rec_type = random.choice(list(self.rec_cats.keys()))
@@ -861,9 +912,9 @@ class ContentService:
              logger.warning("[内容服务] 无法生成推荐作品名，取消分享")
              return None
 
-        # 2. 并发查百度百科和 Tavily 搜索
+        # 2. 并发查百度百科和 Web 搜索
         baike_task = asyncio.create_task(self.news_service.get_baike_info(target_work))
-        tavily_task = asyncio.create_task(self._fetch_search_tavily(target_work, "rec")) if enable_tavily else None
+        tavily_task = asyncio.create_task(self._fetch_web_search(target_work, "rec")) if enable_web_search else None
         
         info = await baike_task
         tavily_info = ""
@@ -876,7 +927,7 @@ class ContentService:
                 baike_context += f"百度百科简介：{info}\n"
             if tavily_info:
                 baike_context += f"全网评价与亮点：{tavily_info}\n"
-            logger.info(f"[内容服务] 推荐资料获取成功: {target_work} (百度百科命中: {'是' if info else '否'}, Tavily 检索命中: {'是' if tavily_info else '否'})")
+            logger.info(f"[内容服务] 推荐资料获取成功: {target_work} (百度百科命中: {'是' if info else '否'}, Web 检索命中: {'是' if tavily_info else '否'})")
         else:
             logger.warning(f"[内容服务] 未命中任何外部资料，将使用 LLM 内部知识库兜底")
             baike_context = f"\n\n【提示】暂无外部资料，请基于你自己的知识库，真诚推荐【{target_work}】。"

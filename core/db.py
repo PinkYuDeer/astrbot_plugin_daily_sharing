@@ -209,7 +209,7 @@ class DatabaseManager:
         deleted_history = cursor.rowcount
         
         if deleted_topic > 0 or deleted_history > 0:
-            logger.info(f"[DailySharing] 自动清理历史记录: 删除了 {deleted_topic} 条话题, {deleted_history} 条日志 (早于 {days_limit} 天)")
+            logger.debug(f"[DailySharing] 自动清理历史记录: 删除了 {deleted_topic} 条话题, {deleted_history} 条日志 (早于 {days_limit} 天)")
             
         conn.commit()
         conn.close()
